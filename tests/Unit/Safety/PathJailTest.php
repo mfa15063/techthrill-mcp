@@ -88,10 +88,6 @@ class PathJailTest extends TestCase {
 		return array(
 			'middle'            => array( 'wp-content/../wp-config.php' ),
 			'backslash'         => array( '..\\x' ),
-			'encoded'           => array( '%2e%2e/x' ),
-			'encoded slash'     => array( '..%2fx' ),
-			'encoded backslash' => array( '..%5cx' ),
-			'mixed case enc'    => array( '%2E%2e/x' ),
 			'trailing'          => array( 'wp-content/..' ),
 			'dot then dotdot'   => array( 'wp-content/./../x' ),
 			'bare'              => array( '..' ),
@@ -119,9 +115,53 @@ class PathJailTest extends TestCase {
 			'slash drive'      => array( '/C:/x' ),
 			'posix absolute'   => array( '//etc/passwd' ),
 			'unc'              => array( '\\\\server\\share' ),
-			'encoded double'   => array( '%2f%2fetc' ),
 			'nul'              => array( "a\0b" ),
-			'encoded nul'      => array( 'a%00b' ),
+		);
+	}
+
+	public function test_percent_sequences_are_literal_not_decoded(): void {
+		$jail = $this->jail();
+		$this->assertSame( '100%20off.jpg', $jail->normalize( '100%20off.jpg' ) );
+		$this->assertSame( '%2e%2e/x', $jail->normalize( '%2e%2e/x' ) );
+		$this->assertSame( 'a%00b', $jail->normalize( 'a%00b' ) );
+		$this->assertSame( '..%2fx', $jail->normalize( '..%2fx' ) );
+	}
+
+	public function test_encoded_traversal_is_a_literal_missing_entry(): void {
+		$this->expectException( PathException::class );
+		$this->jail()->resolve( '%2e%2e/x' );
+	}
+
+	public function test_literal_percent_filename_resolves_to_itself(): void {
+		file_put_contents( $this->root . DIRECTORY_SEPARATOR . '100%20off.jpg', 'x' );
+		$this->assertSame( '100%20off.jpg', $this->jail()->resolve( '100%20off.jpg' )->relative );
+		$this->expectException( PathException::class );
+		$this->jail()->resolve( '100 off.jpg' );
+	}
+
+	/**
+	 * @dataProvider trailingDotSpaceProvider
+	 */
+	public function test_windows_trailing_dot_or_space_rejected( string $input ): void {
+		if ( '\\' !== DIRECTORY_SEPARATOR ) {
+			$this->markTestSkipped( 'Trailing dot/space stripping is Windows-specific.' );
+		}
+		foreach ( array( 'normalize', 'resolve', 'resolveForCreate' ) as $method ) {
+			try {
+				$this->jail()->$method( $input );
+				$this->fail( "Expected PathException from $method for '$input'" );
+			} catch ( PathException $e ) {
+				$this->assertInstanceOf( PathException::class, $e );
+			}
+		}
+	}
+
+	public function trailingDotSpaceProvider(): array {
+		return array(
+			'trailing dot'       => array( 'wp-config.php.' ),
+			'trailing space'     => array( '.htaccess ' ),
+			'dir trailing dot'   => array( 'dir./x' ),
+			'trailing dot space' => array( 'a/b. .' ),
 		);
 	}
 

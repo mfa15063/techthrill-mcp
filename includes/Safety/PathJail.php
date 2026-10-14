@@ -52,11 +52,11 @@ final class PathJail {
 		if ( strlen( $relative ) > self::MAX_INPUT_LENGTH ) {
 			throw new PathException( 'Path is too long.' );
 		}
-		$path = rawurldecode( $relative );
-		if ( false !== strpos( $relative, "\0" ) || false !== strpos( $path, "\0" ) ) {
+		// The input is a literal string: it is deliberately not URL-decoded.
+		if ( false !== strpos( $relative, "\0" ) ) {
 			throw new PathException( 'Path contains a NUL byte.' );
 		}
-		$path = str_replace( '\\', '/', $path );
+		$path = str_replace( '\\', '/', $relative );
 		if ( '/' === substr( $path, 0, 1 ) ) {
 			$path = substr( $path, 1 );
 		}
@@ -73,8 +73,14 @@ final class PathJail {
 			if ( '' === rtrim( $segment, '. ' ) ) {
 				throw new PathException( 'Path traversal is not allowed.' );
 			}
-			if ( '\\' === DIRECTORY_SEPARATOR && false !== strpos( $segment, ':' ) ) {
-				throw new PathException( 'Invalid character in path.' );
+			if ( '\\' === DIRECTORY_SEPARATOR ) {
+				// Win32 strips trailing dots/spaces, so 'wp-config.php.' would address 'wp-config.php'.
+				if ( rtrim( $segment, '. ' ) !== $segment ) {
+					throw new PathException( 'Path segments must not end with a dot or space.' );
+				}
+				if ( false !== strpos( $segment, ':' ) ) {
+					throw new PathException( 'Invalid character in path.' );
+				}
 			}
 			$segments[] = $segment;
 		}
