@@ -45,6 +45,38 @@ class ProcOpenRunnerTest extends TestCase {
 		$this->assertLessThan( 6, $elapsed );
 	}
 
+	public function test_sustained_writer_cannot_extend_the_timeout(): void {
+		$runner  = new ProcOpenRunner();
+		$started = microtime( true );
+		$result  = $runner->run( array( PHP_BINARY, '-r', 'while (true) { echo str_repeat("a", 4096); }' ), sys_get_temp_dir(), $this->env(), 1 );
+		$elapsed = microtime( true ) - $started;
+
+		$this->assertTrue( $result->timedOut );
+		$this->assertLessThan( 5, $elapsed );
+		$this->assertLessThanOrEqual( ProcOpenRunner::OUTPUT_CAP, strlen( $result->stdout ) );
+	}
+
+	public function test_setsid_prefixes_argv_when_available(): void {
+		$this->assertSame(
+			array( '/usr/bin/setsid', '/usr/bin/wp', 'plugin', 'list' ),
+			ProcOpenRunner::withSetsid( array( '/usr/bin/wp', 'plugin', 'list' ), '/usr/bin/setsid' )
+		);
+		$this->assertSame( array( 'a', 'b' ), ProcOpenRunner::withSetsid( array( 'a', 'b' ), null ) );
+	}
+
+	public function test_batch_files_are_refused_on_windows_without_spawning(): void {
+		if ( '\\' !== DIRECTORY_SEPARATOR ) {
+			$this->markTestSkipped( 'Windows only.' );
+		}
+		$runner = new ProcOpenRunner();
+		foreach ( array( 'C:/x/wp.bat', 'C:/x/WP.CMD' ) as $batch ) {
+			$result = $runner->run( array( $batch, 'core', 'version' ), sys_get_temp_dir(), $this->env(), 5 );
+			$this->assertSame( -1, $result->exitCode );
+			$this->assertSame( 'Refusing to launch a batch file.', $result->stderr );
+			$this->assertFalse( $result->timedOut );
+		}
+	}
+
 	public function test_output_is_capped(): void {
 		$runner = new ProcOpenRunner();
 		$result = $runner->run( array( PHP_BINARY, '-r', 'echo str_repeat("a", 300000);' ), sys_get_temp_dir(), $this->env(), 20 );

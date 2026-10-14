@@ -15,6 +15,17 @@ defined( 'ABSPATH' ) || exit;
  * On POSIX the output is read from non-blocking pipes. PHP cannot make pipes
  * non-blocking on Windows (a read would block until the child writes or exits,
  * defeating the timeout), so there the child writes to temporary files instead.
+ *
+ * Process-tree kill: on POSIX, when a setsid binary is available the child is
+ * launched through it so it leads its own process group, and a timeout also
+ * sends SIGKILL to that whole group (via posix_kill, when the extension is
+ * loaded). Without setsid, only the direct child is terminated, so grandchildren
+ * (for example a mysqldump started by a shell-wrapper `wp`) may outlive the call.
+ * setsid forks instead of exec'ing when its caller is already a group leader;
+ * PHP workers normally are not, but in that case the exit code would be lost.
+ *
+ * Batch files are refused on Windows: CreateProcess runs them through cmd.exe,
+ * which interprets metacharacters in the arguments (CVE-2024-1874).
  */
 final class ProcOpenRunner implements ProcessRunner {
 
@@ -28,11 +39,67 @@ final class ProcOpenRunner implements ProcessRunner {
 	 */
 	const POLL_INTERVAL_US = 50000;
 
+	/**
+	 * Most bytes read from one stream per drain() call, so the deadline is checked often.
+	 */
+	const READ_LIMIT_PER_DRAIN = 65536;
+
+	/**
+	 * Locations searched for setsid when none is injected.
+	 */
+	const SETSID_CANDIDATES = array( '/usr/bin/setsid', '/bin/setsid' );
+
+	/**
+	 * Path of an executable setsid, or null when unavailable.
+	 *
+	 * @var string|null
+	 */
+	private ?string $setsid_path;
+
+	/**
+	 * @param string|null $setsid_path Path of setsid; null auto-detects it on POSIX hosts.
+	 */
+	public function __construct( ?string $setsid_path = null ) {
+		if ( null === $setsid_path && '\\' !== DIRECTORY_SEPARATOR ) {
+			foreach ( self::SETSID_CANDIDATES as $candidate ) {
+				if ( is_file( $candidate ) && is_executable( $candidate ) ) {
+					$setsid_path = $candidate;
+					break;
+				}
+			}
+		}
+		$this->setsid_path = $setsid_path;
+	}
+
+	/**
+	 * Prefixes an argv with setsid so the child leads its own process group.
+	 *
+	 * @param string[]    $argv        Program and arguments.
+	 * @param string|null $setsid_path Path of setsid, or null for no prefix.
+	 * @return string[]
+	 */
+	public static function withSetsid( array $argv, ?string $setsid_path ): array {
+		if ( null === $setsid_path || '' === $setsid_path ) {
+			return $argv;
+		}
+
+		return array_merge( array( $setsid_path ), $argv );
+	}
+
 	public function run( array $argv, string $cwd, array $env, int $timeoutSeconds ): ProcessResult {
 		$started = microtime( true );
 		$windows = '\\' === DIRECTORY_SEPARATOR;
 		$pipes   = array();
 		$files   = array();
+
+		if ( $windows && isset( $argv[0] ) && 1 === preg_match( '/\.(bat|cmd)$/i', (string) $argv[0] ) ) {
+			return new ProcessResult( -1, '', 'Refusing to launch a batch file.', 0, false );
+		}
+
+		$grouped = ! $windows && null !== $this->setsid_path;
+		if ( $grouped ) {
+			$argv = self::withSetsid( $argv, $this->setsid_path );
+		}
 
 		if ( $windows ) {
 			$files = array( tempnam( sys_get_temp_dir(), 'ttm' ), tempnam( sys_get_temp_dir(), 'ttm' ) );
@@ -92,6 +159,9 @@ final class ProcOpenRunner implements ProcessRunner {
 					proc_terminate( $proc );
 				} else {
 					proc_terminate( $proc, 9 );
+					if ( $grouped && function_exists( 'posix_kill' ) && $status['pid'] > 0 ) {
+						posix_kill( -$status['pid'], 9 );
+					}
 				}
 				break;
 			}
@@ -108,10 +178,16 @@ final class ProcOpenRunner implements ProcessRunner {
 			list( $err, $err_trunc ) = $this->readCapped( $files[1] );
 			$this->removeFiles( $files );
 		} else {
-			// Collect whatever the process wrote before it ended.
-			do {
-				$read = $this->drain( $pipes[1], $out, $out_trunc ) + $this->drain( $pipes[2], $err, $err_trunc );
-			} while ( $read > 0 );
+			// Collect what the process wrote. After a timeout one bounded read is enough, since
+			// a surviving pipe holder could otherwise keep this loop going indefinitely.
+			if ( $timed_out ) {
+				$this->drain( $pipes[1], $out, $out_trunc );
+				$this->drain( $pipes[2], $err, $err_trunc );
+			} else {
+				do {
+					$read = $this->drain( $pipes[1], $out, $out_trunc ) + $this->drain( $pipes[2], $err, $err_trunc );
+				} while ( $read > 0 && microtime( true ) < $deadline );
+			}
 			fclose( $pipes[1] );
 			fclose( $pipes[2] );
 			$closed = proc_close( $proc );
@@ -127,7 +203,8 @@ final class ProcOpenRunner implements ProcessRunner {
 	}
 
 	/**
-	 * Reads what is currently available from a pipe, keeping at most OUTPUT_CAP bytes in total.
+	 * Reads what is currently available from a pipe (at most READ_LIMIT_PER_DRAIN bytes per call),
+	 * keeping at most OUTPUT_CAP bytes in total.
 	 *
 	 * @param resource $pipe      Non-blocking read pipe.
 	 * @param string   $buffer    Collected output so far.
@@ -136,7 +213,7 @@ final class ProcOpenRunner implements ProcessRunner {
 	 */
 	private function drain( $pipe, string &$buffer, bool &$truncated ): int {
 		$total = 0;
-		while ( true ) {
+		while ( $total < self::READ_LIMIT_PER_DRAIN ) {
 			$chunk = fread( $pipe, 8192 );
 			if ( false === $chunk || '' === $chunk ) {
 				break;

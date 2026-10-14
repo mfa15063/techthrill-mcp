@@ -58,7 +58,7 @@ final class WpCli extends AbstractTool {
 	}
 
 	public function description(): string {
-		return 'Run one WP-CLI command on this site without the leading "wp", e.g. "plugin list --format=json". Global flags --path, --url, --ssh, --http and --user are managed by the server and cannot be overridden. Some commands are blocked for safety.';
+		return 'Run one WP-CLI command on this site without the leading "wp", e.g. "plugin list --format=json". The server manages --path, --url, --blog, --ssh, --http, --user, --require, --exec, --skip-plugins and --skip-themes; these flags are removed if supplied. Some commands are blocked for safety.';
 	}
 
 	public function inputSchema(): array {
@@ -95,6 +95,10 @@ final class WpCli extends AbstractTool {
 		$binary = $this->host->wpBinary();
 		if ( null === $binary ) {
 			return $this->fail( 'WP-CLI was not found on this host. The site administrator can install it from TechThrill MCP → Connect.' );
+		}
+
+		if ( '\\' === DIRECTORY_SEPARATOR && 1 === preg_match( '/\.(bat|cmd)$/i', (string) $binary[0] ) ) {
+			return $this->fail( 'WP-CLI is installed as a batch file on this host, which cannot be run safely. The site administrator can install the phar from TechThrill MCP → Connect.' );
 		}
 
 		try {

@@ -54,9 +54,15 @@ class HostCapabilitiesTest extends TestCase {
 		$this->assertFalse( $this->host( array(), $this->tempDir(), '', 'exec,proc_open' )->execAvailable() );
 	}
 
+	public function test_exec_unavailable_when_any_process_function_is_disabled(): void {
+		foreach ( array( 'proc_get_status', 'proc_terminate', 'proc_close' ) as $function ) {
+			$this->assertFalse( $this->host( array(), $this->tempDir(), '', 'exec, ' . strtoupper( $function ) )->execAvailable(), $function );
+		}
+	}
+
 	public function test_settings_path_wins(): void {
 		$dir = $this->tempDir();
-		$cli = $dir . '/custom-wp';
+		$cli = $dir . ( DIRECTORY_SEPARATOR === '\\' ? '/custom-wp.exe' : '/custom-wp' );
 		file_put_contents( $cli, '' );
 		chmod( $cli, 0755 );
 		$bin = $dir . '/bin';
@@ -74,7 +80,7 @@ class HostCapabilitiesTest extends TestCase {
 		$dir = $this->tempDir();
 		$bin = $dir . '/bin';
 		mkdir( $bin );
-		$name = DIRECTORY_SEPARATOR === '\\' ?'wp.bat' : 'wp';
+		$name = DIRECTORY_SEPARATOR === '\\' ? 'wp.exe' : 'wp';
 		file_put_contents( $bin . '/' . $name, '' );
 		chmod( $bin . '/' . $name, 0755 );
 
@@ -83,21 +89,69 @@ class HostCapabilitiesTest extends TestCase {
 		$this->assertSame( array( $bin . '/' . $name ), $host->wpBinary() );
 	}
 
-	public function test_windows_prefers_launchable_extension_over_bare_script(): void {
+	private function skipUnlessWindows(): void {
 		if ( DIRECTORY_SEPARATOR !== '\\' ) {
 			$this->markTestSkipped( 'Windows PATH resolution only.' );
 		}
+	}
+
+	public function test_windows_batch_file_alone_is_not_a_binary(): void {
+		$this->skipUnlessWindows();
 		$dir = $this->tempDir();
 		$bin = $dir . '/bin';
 		mkdir( $bin );
 		file_put_contents( $bin . '/wp', '' );
 		file_put_contents( $bin . '/wp.bat', '' );
+		file_put_contents( $bin . '/wp.cmd', '' );
 
-		$this->assertSame( array( $bin . '/wp.bat' ), $this->host( array(), $dir, $bin )->wpBinary() );
-
-		// A bare script alone is not launchable on Windows.
-		unlink( $bin . '/wp.bat' );
 		$this->assertNull( $this->host( array(), $dir, $bin )->wpBinary() );
+	}
+
+	public function test_windows_batch_file_with_sibling_phar_uses_the_phar(): void {
+		$this->skipUnlessWindows();
+		$dir = $this->tempDir();
+		$bin = $dir . '/bin';
+		mkdir( $bin );
+		file_put_contents( $bin . '/wp.bat', '' );
+		file_put_contents( $bin . '/wp-cli.phar', '' );
+
+		$this->assertSame( array( PHP_BINARY, $bin . '/wp-cli.phar' ), $this->host( array(), $dir, $bin )->wpBinary() );
+	}
+
+	public function test_windows_exe_is_used_directly(): void {
+		$this->skipUnlessWindows();
+		$dir = $this->tempDir();
+		$bin = $dir . '/bin';
+		mkdir( $bin );
+		file_put_contents( $bin . '/wp.exe', '' );
+		file_put_contents( $bin . '/wp.bat', '' );
+
+		$this->assertSame( array( $bin . '/wp.exe' ), $this->host( array(), $dir, $bin )->wpBinary() );
+	}
+
+	public function test_windows_cli_path_accepts_exe_and_phar_only(): void {
+		$this->skipUnlessWindows();
+		$dir = $this->tempDir();
+		file_put_contents( $dir . '/tool.bat', '' );
+		file_put_contents( $dir . '/tool.cmd', '' );
+		file_put_contents( $dir . '/tool.exe', '' );
+		file_put_contents( $dir . '/tool.phar', '' );
+
+		$this->assertNull( $this->host( array( 'cli_path' => $dir . '/tool.bat' ), $dir, '' )->wpBinary() );
+		$this->assertNull( $this->host( array( 'cli_path' => $dir . '/tool.cmd' ), $dir, '' )->wpBinary() );
+		$this->assertSame( array( $dir . '/tool.exe' ), $this->host( array( 'cli_path' => $dir . '/tool.exe' ), $dir, '' )->wpBinary() );
+		$this->assertSame( array( PHP_BINARY, $dir . '/tool.phar' ), $this->host( array( 'cli_path' => $dir . '/tool.phar' ), $dir, '' )->wpBinary() );
+	}
+
+	public function test_windows_batch_cli_path_falls_through_to_path(): void {
+		$this->skipUnlessWindows();
+		$dir = $this->tempDir();
+		$bin = $dir . '/bin';
+		mkdir( $bin );
+		file_put_contents( $dir . '/custom.bat', '' );
+		file_put_contents( $bin . '/wp.exe', '' );
+
+		$this->assertSame( array( $bin . '/wp.exe' ), $this->host( array( 'cli_path' => $dir . '/custom.bat' ), $dir, $bin )->wpBinary() );
 	}
 
 	public function test_non_executable_cli_path_falls_through_on_posix(): void {
@@ -120,7 +174,7 @@ class HostCapabilitiesTest extends TestCase {
 		$dir = $this->tempDir();
 		$bin = $dir . '/bin';
 		mkdir( $bin );
-		$name = DIRECTORY_SEPARATOR === '\\' ? 'wp.bat' : 'wp';
+		$name = DIRECTORY_SEPARATOR === '\\' ? 'wp.exe' : 'wp';
 		file_put_contents( $bin . '/' . $name, '' );
 		chmod( $bin . '/' . $name, 0755 );
 

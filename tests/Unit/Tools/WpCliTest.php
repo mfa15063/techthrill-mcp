@@ -18,7 +18,7 @@ class WpCliTest extends TestCase {
 	protected function setUp(): void {
 		$this->bin_dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'ttm-wp-' . uniqid( '', true );
 		mkdir( $this->bin_dir, 0777, true );
-		$name = '\\' === DIRECTORY_SEPARATOR ? 'wp.bat' : 'wp';
+		$name = '\\' === DIRECTORY_SEPARATOR ? 'wp.exe' : 'wp';
 		file_put_contents( $this->bin_dir . DIRECTORY_SEPARATOR . $name, "#!/bin/sh\nexit 0\n" );
 		chmod( $this->bin_dir . DIRECTORY_SEPARATOR . $name, 0755 );
 	}
@@ -149,6 +149,33 @@ class WpCliTest extends TestCase {
 		$runner = new FakeProcessRunner();
 		$result = $this->tool( $runner )->execute( array( 'command' => 'option get "oops' ), $this->ctx() );
 		$this->assertTrue( $result->isError() );
+		$this->assertSame( 0, $runner->calls );
+	}
+
+	public function test_description_names_every_stripped_flag(): void {
+		$description = $this->tool( new FakeProcessRunner() )->description();
+		foreach ( CommandParser::STRIPPED_FLAGS as $flag ) {
+			$this->assertStringContainsString( '--' . $flag, $description );
+		}
+	}
+
+	public function test_batch_file_binary_is_refused_on_windows(): void {
+		if ( '\\' !== DIRECTORY_SEPARATOR ) {
+			$this->markTestSkipped( 'Windows only.' );
+		}
+		$host = new class( new Settings(), '' ) extends HostCapabilities {
+			public function execAvailable(): bool {
+				return true;
+			}
+
+			public function wpBinary(): ?array {
+				return array( 'C:/tools/WP.BAT' );
+			}
+		};
+		$runner = new FakeProcessRunner();
+		$result = $this->tool( $runner, false, $host )->execute( array( 'command' => 'core version' ), $this->ctx() );
+		$this->assertTrue( $result->isError() );
+		$this->assertSame( 'WP-CLI is installed as a batch file on this host, which cannot be run safely. The site administrator can install the phar from TechThrill MCP → Connect.', $result->text() );
 		$this->assertSame( 0, $runner->calls );
 	}
 

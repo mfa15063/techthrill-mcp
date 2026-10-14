@@ -16,12 +16,23 @@ defined( 'ABSPATH' ) || exit;
  *
  * Never shells out: binaries are found by scanning the PATH directories.
  */
-final class HostCapabilities {
+class HostCapabilities {
 
 	/**
-	 * Launchable WP-CLI names on Windows, in order (a bare `wp` script cannot be run there).
+	 * Directly launchable WP-CLI names on Windows (a bare `wp` script cannot be run there).
 	 */
-	const WINDOWS_NAMES = array( 'wp.bat', 'wp.cmd', 'wp.exe' );
+	const WINDOWS_NAMES = array( 'wp.exe' );
+
+	/**
+	 * Batch wrappers on Windows. They are never launched: CreateProcess runs them through cmd.exe,
+	 * which interprets metacharacters in arguments (CVE-2024-1874). Only a sibling phar is used.
+	 */
+	const WINDOWS_BATCH_NAMES = array( 'wp.bat', 'wp.cmd' );
+
+	/**
+	 * Functions the process runner needs.
+	 */
+	const PROCESS_FUNCTIONS = array( 'proc_open', 'proc_get_status', 'proc_terminate', 'proc_close' );
 
 	private Settings $settings;
 
@@ -55,16 +66,14 @@ final class HostCapabilities {
 	}
 
 	/**
-	 * Whether PHP can spawn a process (proc_open exists and is not disabled).
+	 * Whether PHP can spawn and supervise a process (every proc_* function the runner uses exists and is enabled).
 	 */
 	public function execAvailable(): bool {
-		if ( ! function_exists( 'proc_open' ) ) {
-			return false;
-		}
-
 		$disabled = null !== $this->disable_functions ? $this->disable_functions : (string) ini_get( 'disable_functions' );
-		foreach ( explode( ',', $disabled ) as $function ) {
-			if ( 'proc_open' === strtolower( trim( $function ) ) ) {
+		$disabled = array_map( 'trim', explode( ',', strtolower( $disabled ) ) );
+
+		foreach ( self::PROCESS_FUNCTIONS as $function ) {
+			if ( ! function_exists( $function ) || in_array( $function, $disabled, true ) ) {
 				return false;
 			}
 		}
@@ -80,14 +89,14 @@ final class HostCapabilities {
 	 * @return string[]|null
 	 */
 	public function wpBinary(): ?array {
-		$configured = (string) $this->settings->get( 'cli_path' );
-		if ( '' !== $configured && is_file( $configured ) && ( '\\' === DIRECTORY_SEPARATOR || is_executable( $configured ) ) ) {
-			return array( $configured );
+		$configured = $this->configuredBinary();
+		if ( null !== $configured ) {
+			return $configured;
 		}
 
 		$found = $this->findOnPath();
 		if ( null !== $found ) {
-			return array( $found );
+			return $found;
 		}
 
 		if ( '' !== $this->pharPath() && is_file( $this->pharPath() ) ) {
@@ -155,9 +164,55 @@ final class HostCapabilities {
 	}
 
 	/**
-	 * Scans the PATH directories for a WP-CLI executable without running anything.
+	 * Argument-vector prefix for the cli_path setting, or null when it is unset or unusable.
+	 *
+	 * On Windows only .exe and .phar files are accepted (never batch files).
+	 *
+	 * @return string[]|null
 	 */
-	private function findOnPath(): ?string {
+	private function configuredBinary(): ?array {
+		$configured = (string) $this->settings->get( 'cli_path' );
+		if ( '' === $configured || ! is_file( $configured ) ) {
+			return null;
+		}
+
+		if ( '\\' !== DIRECTORY_SEPARATOR ) {
+			return is_executable( $configured ) ? array( $configured ) : null;
+		}
+
+		$extension = strtolower( pathinfo( $configured, PATHINFO_EXTENSION ) );
+		if ( 'exe' === $extension ) {
+			return array( $configured );
+		}
+		if ( 'phar' === $extension ) {
+			return array( PHP_BINARY, $configured );
+		}
+
+		return null;
+	}
+
+	/**
+	 * The wp-cli.phar next to a wp.bat/wp.cmd wrapper in a directory, or null.
+	 *
+	 * @param string $dir PATH directory.
+	 */
+	private function siblingPhar( string $dir ): ?string {
+		$base = rtrim( $dir, '/\\' ) . '/';
+		foreach ( self::WINDOWS_BATCH_NAMES as $name ) {
+			if ( is_file( $base . $name ) && is_file( $base . 'wp-cli.phar' ) ) {
+				return $base . 'wp-cli.phar';
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * Scans the PATH directories for a WP-CLI executable without running anything.
+	 *
+	 * @return string[]|null
+	 */
+	private function findOnPath(): ?array {
 		$path = null !== $this->path_env ? $this->path_env : (string) getenv( 'PATH' );
 		if ( '' === $path ) {
 			return null;
@@ -175,7 +230,14 @@ final class HostCapabilities {
 			foreach ( $names as $name ) {
 				$candidate = rtrim( $dir, '/\\' ) . '/' . $name;
 				if ( is_file( $candidate ) && ( $windows || is_executable( $candidate ) ) ) {
-					return $candidate;
+					return array( $candidate );
+				}
+			}
+
+			if ( $windows ) {
+				$phar = $this->siblingPhar( $dir );
+				if ( null !== $phar ) {
+					return array( PHP_BINARY, $phar );
 				}
 			}
 		}
