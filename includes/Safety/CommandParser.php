@@ -22,9 +22,11 @@ final class CommandParser {
 		'shell',
 		'db cli',
 		'db query',
+		'db connect',
 		'eval',
 		'eval-file',
 		'cli update',
+		'cli alias',
 		'package install',
 		'package update',
 	);
@@ -38,6 +40,7 @@ final class CommandParser {
 		'ssh',
 		'http',
 		'url',
+		'blog',
 		'path',
 		'user',
 		'skip-plugins',
@@ -128,6 +131,21 @@ final class CommandParser {
 	}
 
 	/**
+	 * Tokenize a command string and strip flags the agent must not control.
+	 *
+	 * The result is what must be passed to firstBlocked() and then to the
+	 * process: matching on unstripped argv is unsafe, because WP-CLI reads
+	 * `--url x` as a flag plus a positional `x`.
+	 *
+	 * @param string $command Raw command string.
+	 * @return string[] Sanitized argument list.
+	 * @throws CommandException On an unterminated quote or trailing backslash.
+	 */
+	public function parse( string $command ): array {
+		return $this->stripFlags( $this->tokenize( $command ) );
+	}
+
+	/**
 	 * Remove flags the agent must not control.
 	 *
 	 * Handles `--name`, `--name=value` and `--name value` (the value token is
@@ -168,11 +186,15 @@ final class CommandParser {
 	 *
 	 * An entry matches when argv's positional tokens (those not starting with
 	 * `-`) begin with the entry's positional words, and every `--flag` word of
-	 * the entry appears in argv as an exact token.
+	 * the entry appears in argv as an exact token or as `--flag=value`
+	 * (WP-CLI treats `--force=1` as true).
+	 *
+	 * The argv must be the output of parse() (flags already stripped).
 	 *
 	 * @param string[] $argv      Argument list.
 	 * @param string[] $blocklist Entries such as `db cli` or `post delete --force`.
 	 * @return string|null The matching entry, or null.
+	 * @throws CommandException When the first positional is a site alias (@name).
 	 */
 	public function firstBlocked( array $argv, array $blocklist ): ?string {
 		$positional = array();
@@ -180,6 +202,10 @@ final class CommandParser {
 			if ( 0 !== strpos( $token, '-' ) ) {
 				$positional[] = $token;
 			}
+		}
+
+		if ( isset( $positional[0] ) && 0 === strpos( $positional[0], '@' ) ) {
+			throw new CommandException( 'Site aliases (@name) are not available through TechThrill MCP.' );
 		}
 
 		foreach ( $blocklist as $entry ) {
@@ -201,13 +227,31 @@ final class CommandParser {
 			if ( array_slice( $positional, 0, count( $entry_positional ) ) !== $entry_positional ) {
 				continue;
 			}
-			if ( array_diff( $entry_flags, $argv ) ) {
-				continue;
+			foreach ( $entry_flags as $flag ) {
+				if ( ! $this->hasFlag( $argv, $flag ) ) {
+					continue 2;
+				}
 			}
 
 			return $entry;
 		}
 
 		return null;
+	}
+
+	/**
+	 * Whether argv contains the flag as `--flag` or `--flag=value`.
+	 *
+	 * @param string[] $argv Argument list.
+	 * @param string   $flag Flag word including leading dashes.
+	 * @return bool
+	 */
+	private function hasFlag( array $argv, string $flag ): bool {
+		foreach ( $argv as $token ) {
+			if ( $token === $flag || 0 === strpos( $token, $flag . '=' ) ) {
+				return true;
+			}
+		}
+		return false;
 	}
 }

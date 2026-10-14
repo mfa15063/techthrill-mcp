@@ -158,7 +158,9 @@ class CommandParserTest extends TestCase {
 		$this->assertSame( 'post delete --force', $p->firstBlocked( array( 'post', 'delete', '1', '--force' ), $list ) );
 		$this->assertSame( 'post delete --force', $p->firstBlocked( array( 'post', '--force', 'delete', '1' ), $list ) );
 		$this->assertNull( $p->firstBlocked( array( 'post', 'delete', '1' ), $list ) );
-		$this->assertNull( $p->firstBlocked( array( 'post', 'delete', '1', '--force=1' ), $list ) );
+		$this->assertSame( 'post delete --force', $p->firstBlocked( array( 'post', 'delete', '1', '--force=1' ), $list ) );
+		$this->assertNull( $p->firstBlocked( array( 'post', 'delete', '1', '--forcex' ), $list ) );
+		$this->assertNull( $p->firstBlocked( array( 'post', 'delete', '1', '--forcex=1' ), $list ) );
 		$this->assertNull( $p->firstBlocked( array( 'post', 'list', '--force' ), $list ) );
 	}
 
@@ -173,5 +175,39 @@ class CommandParserTest extends TestCase {
 	public function test_blocklist_ignores_empty_entries(): void {
 		$p = new CommandParser();
 		$this->assertNull( $p->firstBlocked( array( 'post', 'list' ), array( '', '  ' ) ) );
+	}
+
+	public function test_site_alias_as_first_positional_throws(): void {
+		$p = new CommandParser();
+		try {
+			$p->firstBlocked( array( '@x', 'eval' ), CommandParser::ALWAYS_BLOCKED );
+			$this->fail( 'Expected CommandException.' );
+		} catch ( CommandException $e ) {
+			$this->assertSame( 'Site aliases (@name) are not available through TechThrill MCP.', $e->getMessage() );
+		}
+		$this->expectException( CommandException::class );
+		$p->firstBlocked( array( '--debug', '@prod', 'db', 'query' ), CommandParser::ALWAYS_BLOCKED );
+	}
+
+	public function test_cli_alias_is_blocked(): void {
+		$p = new CommandParser();
+		$this->assertSame( 'cli alias', $p->firstBlocked( array( 'cli', 'alias', 'add', '@x' ), CommandParser::ALWAYS_BLOCKED ) );
+	}
+
+	public function test_db_connect_is_blocked(): void {
+		$p = new CommandParser();
+		$this->assertSame( 'db connect', $p->firstBlocked( array( 'db', 'connect', '--execute=x' ), CommandParser::ALWAYS_BLOCKED ) );
+	}
+
+	public function test_blog_flag_is_stripped(): void {
+		$p = new CommandParser();
+		$this->assertSame( array( 'option', 'list' ), $p->stripFlags( array( 'option', 'list', '--blog=http://other' ) ) );
+		$this->assertSame( array( 'option', 'list' ), $p->stripFlags( array( 'option', 'list', '--blog', 'http://other' ) ) );
+	}
+
+	public function test_parse_strips_flags_so_blocklist_sees_real_command(): void {
+		$p = new CommandParser();
+		$this->assertSame( 'eval', $p->firstBlocked( $p->parse( '--url x eval code' ), CommandParser::ALWAYS_BLOCKED ) );
+		$this->assertSame( array( 'plugin', 'list' ), $p->parse( 'wp plugin list --path=/x' ) );
 	}
 }
