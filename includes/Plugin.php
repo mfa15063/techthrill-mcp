@@ -17,8 +17,10 @@ use TechThrill\MCP\Logging\AuditLog;
 use TechThrill\MCP\Mcp\RestController;
 use TechThrill\MCP\Mcp\SchemaValidator;
 use TechThrill\MCP\Mcp\Server;
+use TechThrill\MCP\Safety\HostCapabilities;
 use TechThrill\MCP\Safety\PathJail;
 use TechThrill\MCP\Safety\SafeMode;
+use TechThrill\MCP\Tools\SiteInfo;
 use TechThrill\MCP\Tools\ToolRegistry;
 use TechThrill\MCP\Tools\ToolResult;
 
@@ -56,6 +58,8 @@ final class Plugin {
 
 	private PathJail $path_jail;
 
+	private HostCapabilities $host_capabilities;
+
 	private ToolRegistry $registry;
 
 	private AuditLog $audit_log;
@@ -92,6 +96,9 @@ final class Plugin {
 		$this->settings  = new Settings();
 		$this->path_jail = new PathJail( ABSPATH );
 
+		$uploads                 = wp_upload_dir();
+		$this->host_capabilities = new HostCapabilities( $this->settings, (string) ( $uploads['basedir'] ?? '' ) );
+
 		$plugin_relative_dir = trim( str_replace( wp_normalize_path( ABSPATH ), '', wp_normalize_path( TECHTHRILL_MCP_DIR ) ), '/' );
 		$this->safe_mode     = new SafeMode( (bool) $this->settings->get( 'safe_mode' ), $plugin_relative_dir );
 
@@ -106,6 +113,7 @@ final class Plugin {
 		);
 
 		$registry = new ToolRegistry();
+		$registry->register( new SiteInfo( $this->host_capabilities, $this->safe_mode ) );
 		$filtered = apply_filters( 'techthrill_mcp_tools', $registry );
 		if ( $filtered instanceof ToolRegistry ) {
 			$registry = $filtered;
@@ -163,6 +171,10 @@ final class Plugin {
 
 	public function safeMode(): SafeMode {
 		return $this->safe_mode;
+	}
+
+	public function hostCapabilities(): HostCapabilities {
+		return $this->host_capabilities;
 	}
 
 	public function pathJail(): PathJail {
