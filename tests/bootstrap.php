@@ -74,3 +74,55 @@ if ( ! function_exists( 'sanitize_text_field' ) ) {
 		return trim( strip_tags( (string) $str ) );
 	}
 }
+
+// Stubs for the REST layer.
+require_once __DIR__ . '/Support/wp-rest-stubs.php';
+
+if ( ! function_exists( 'register_rest_route' ) ) {
+	function register_rest_route( $namespace, $route, $args = array() ) {
+		$GLOBALS['ttm_registered_routes'][] = array( $namespace, $route, $args );
+		return true;
+	}
+}
+if ( ! function_exists( 'add_filter' ) ) {
+	function add_filter( $hook, $callback, $priority = 10, $accepted_args = 1 ) {
+		$GLOBALS['ttm_filters'][ $hook ][] = array( $callback, $priority );
+		return true;
+	}
+}
+if ( ! function_exists( 'wp_set_current_user' ) ) {
+	function wp_set_current_user( $id ) {
+		$GLOBALS['ttm_current_user'] = (int) $id;
+		return null;
+	}
+}
+if ( ! function_exists( 'rest_url' ) ) {
+	function rest_url( $path = '' ) {
+		return 'http://example.test/wp-json/' . ltrim( $path, '/' );
+	}
+}
+if ( ! function_exists( '__return_true' ) ) {
+	function __return_true() {
+		return true;
+	}
+}
+if ( ! function_exists( 'user_can' ) ) {
+	function user_can( $user, $capability ) {
+		return false;
+	}
+}
+if ( ! function_exists( 'get_option' ) ) {
+	function get_option( $name, $default = false ) {
+		return $default;
+	}
+}
+if ( ! function_exists( 'wp_parse_url' ) ) {
+	function wp_parse_url( $url, $component = -1 ) {
+		return parse_url( $url, $component );
+	}
+}
+if ( ! function_exists( 'wp_unslash' ) ) {
+	function wp_unslash( $value ) {
+		return is_string( $value ) ? stripslashes( $value ) : $value;
+	}
+}
