@@ -85,6 +85,12 @@ final class FileEdit extends AbstractFileTool {
 		}
 
 		$count = substr_count( $text, $old );
+		if ( 0 === $count && false !== strpos( $text, "\r\n" ) && false !== strpos( $old, "\n" ) && false === strpos( $old, "\r" ) ) {
+			// file_read hides CRLF, so retry an LF multi-line string against a CRLF file.
+			$old   = str_replace( "\n", "\r\n", $old );
+			$new   = str_replace( "\n", "\r\n", $new );
+			$count = substr_count( $text, $old );
+		}
 		if ( 0 === $count ) {
 			return $this->fail( 'old_string was not found in ' . $file->relative . '.' );
 		}

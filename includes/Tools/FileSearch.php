@@ -107,13 +107,17 @@ final class FileSearch extends AbstractFileTool {
 				}
 			);
 			foreach ( $walker as $item ) {
-				if ( ! $item->isFile() || ( '' !== $glob && ! fnmatch( $glob, $item->getFilename() ) ) ) {
+				// Symlinked files are never read: they could point outside the jail.
+				if ( $item->isLink() || ! $item->isFile() || ( '' !== $glob && ! fnmatch( $glob, $item->getFilename() ) ) ) {
+					continue;
+				}
+				$path = $this->relativePath( $item, $dir->absolute, $dir->relative );
+				if ( 'wp-config.php' === strtolower( $path ) && ! $ctx->hasScope( 'db:read' ) ) {
 					continue;
 				}
 				if ( (int) $item->getSize() > self::MAX_FILE_BYTES || $this->isBinary( $item->getPathname() ) ) {
 					continue;
 				}
-				$path = $this->relativePath( $item, $dir->absolute, $dir->relative );
 				if ( $this->searchFile( $item->getPathname(), $path, $regex, $max, $matches ) ) {
 					$truncated = true;
 					break;
@@ -148,13 +152,13 @@ final class FileSearch extends AbstractFileTool {
 			return false;
 		}
 		foreach ( explode( "\n", $content ) as $index => $line ) {
-			if ( 1 !== @preg_match( $regex, $line ) ) {
+			$text = rtrim( $line, "\r\n" );
+			if ( 1 !== @preg_match( $regex, $text ) ) {
 				continue;
 			}
 			if ( count( $matches ) >= $max ) {
 				return true;
 			}
-			$text      = rtrim( $line, "\r\n" );
 			$matches[] = array(
 				'path' => $path,
 				'line' => $index + 1,

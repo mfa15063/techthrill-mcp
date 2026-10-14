@@ -17,6 +17,8 @@ class FileToolsTest extends TestCase {
 
 	private string $root;
 
+	private ?string $outside = null;
+
 	protected function setUp(): void {
 		$this->root = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'ttm-files-' . uniqid( '', true );
 		mkdir( $this->root . '/wp-content/themes/t', 0777, true );
@@ -35,6 +37,9 @@ class FileToolsTest extends TestCase {
 
 	protected function tearDown(): void {
 		$this->removeTree( $this->root );
+		if ( null !== $this->outside ) {
+			$this->removeTree( $this->outside );
+		}
 	}
 
 	private function removeTree( string $path ): void {
@@ -143,20 +148,35 @@ class FileToolsTest extends TestCase {
 	}
 
 	public function test_list_reports_symlinks_without_following(): void {
+		$outside = $this->outsideDir( array( 'secret.txt' => 'x' ), $this->root . '/wp-content/link' );
+
+		$tool  = new FileList( new PathJail( $this->root ), $this->safe() );
+		$data  = $this->data( $tool->execute( array( 'path' => 'wp-content', 'recursive' => true ), $this->ctx() ) );
+		$types = array_column( $data['entries'], 'type', 'path' );
+		$this->assertSame( 'link', $types['wp-content/link'] );
+		$this->assertNotContains( 'wp-content/link/secret.txt', array_keys( $types ) );
+		$this->assertDirectoryExists( $outside );
+	}
+
+	/**
+	 * Creates a directory outside the root and a symlink to it, or skips the test when symlinks are unavailable.
+	 *
+	 * @param array<string,string> $files Files to create in the outside directory.
+	 * @param string               $link  Where to create the symlink.
+	 * @param string|null          $file  When set, link to this file inside the outside directory instead.
+	 */
+	private function outsideDir( array $files, string $link, ?string $file = null ): string {
 		$outside = $this->root . '-outside';
 		mkdir( $outside );
-		file_put_contents( $outside . '/secret.txt', 'x' );
-		if ( @symlink( $outside, $this->root . '/wp-content/link' ) ) {
-			$tool = new FileList( new PathJail( $this->root ), $this->safe() );
-			$data = $this->data( $tool->execute( array( 'path' => 'wp-content', 'recursive' => true ), $this->ctx() ) );
-			$types = array_column( $data['entries'], 'type', 'path' );
-			$this->assertSame( 'link', $types['wp-content/link'] );
-			$this->assertNotContains( 'wp-content/link/secret.txt', array_keys( $types ) );
-			@unlink( $this->root . '/wp-content/link' );
-			@rmdir( $this->root . '/wp-content/link' );
+		foreach ( $files as $name => $content ) {
+			file_put_contents( $outside . '/' . $name, $content );
 		}
-		$this->removeTree( $outside );
-		$this->assertTrue( true );
+		if ( ! @symlink( null === $file ? $outside : $outside . '/' . $file, $link ) ) {
+			$this->removeTree( $outside );
+			$this->markTestSkipped( 'symlink() unavailable on this platform' );
+		}
+		$this->outside = $outside;
+		return $outside;
 	}
 
 	public function test_read_with_offset_and_limit_reports_total(): void {
@@ -391,19 +411,85 @@ class FileToolsTest extends TestCase {
 		$this->assertFileExists( $this->root . '/wp-content/node_modules/x/b.css' );
 	}
 
+
 	public function test_recursive_delete_does_not_follow_symlinks(): void {
-		$outside = $this->root . '-outside';
-		mkdir( $outside );
-		file_put_contents( $outside . '/keep.txt', 'keep' );
 		mkdir( $this->root . '/victim' );
 		file_put_contents( $this->root . '/victim/a.txt', 'a' );
-		if ( @symlink( $outside, $this->root . '/victim/link' ) ) {
-			$result = ( new FileDelete( new PathJail( $this->root ), $this->safe( false ) ) )->execute( array( 'path' => 'victim', 'recursive' => true ), $this->ctx() );
-			$this->assertFalse( $result->isError(), $result->text() );
-			$this->assertDirectoryDoesNotExist( $this->root . '/victim' );
-			$this->assertFileExists( $outside . '/keep.txt' );
+		$outside = $this->outsideDir( array( 'keep.txt' => 'keep' ), $this->root . '/victim/link' );
+
+		$result = ( new FileDelete( new PathJail( $this->root ), $this->safe( false ) ) )->execute( array( 'path' => 'victim', 'recursive' => true ), $this->ctx() );
+		$this->assertFalse( $result->isError(), $result->text() );
+		$this->assertDirectoryDoesNotExist( $this->root . '/victim' );
+		$this->assertFileExists( $outside . '/keep.txt' );
+	}
+
+	public function test_delete_symlink_removes_link_not_target(): void {
+		if ( ! @symlink( $this->root . '/wp-content/themes/t', $this->root . '/theme-link' ) ) {
+			$this->markTestSkipped( 'symlink() unavailable on this platform' );
 		}
-		$this->removeTree( $outside );
-		$this->assertTrue( true );
+
+		$tool   = new FileDelete( new PathJail( $this->root ), $this->safe( false ) );
+		$result = $this->data( $tool->execute( array( 'path' => 'theme-link', 'recursive' => true ), $this->ctx() ) );
+		$this->assertSame( array( 'path' => 'theme-link', 'deleted' => true, 'type' => 'link' ), $result );
+		$this->assertFalse( is_link( $this->root . '/theme-link' ) );
+		$this->assertFileExists( $this->root . '/wp-content/themes/t/style.css' );
+	}
+
+	public function test_delete_rejects_dot_segments_and_missing_parent(): void {
+		$tool = new FileDelete( new PathJail( $this->root ), $this->safe( false ) );
+		$this->assertTrue( $tool->execute( array( 'path' => 'wp-content/..' ), $this->ctx() )->isError() );
+		$this->assertTrue( $tool->execute( array( 'path' => 'nope/file.txt' ), $this->ctx() )->isError() );
+		$this->assertFileExists( $this->root . '/wp-config.php' );
+	}
+
+	public function test_search_does_not_read_symlinked_files(): void {
+		$this->outsideDir( array( 'secret.txt' => "topsecret\n" ), $this->root . '/link.txt', 'secret.txt' );
+
+		$data = $this->data( ( new FileSearch( new PathJail( $this->root ), $this->safe() ) )->execute( array( 'pattern' => 'topsecret' ), $this->ctx() ) );
+		$this->assertSame( 0, $data['count'] );
+	}
+
+	public function test_search_skips_wp_config_without_db_read_scope(): void {
+		file_put_contents( $this->root . '/wp-config.php', "<?php\ndefine( 'DB_PASSWORD', 'hunter2' );\n" );
+		$tool = new FileSearch( new PathJail( $this->root ), $this->safe() );
+
+		$denied = $this->data( $tool->execute( array( 'pattern' => 'DB_' ), $this->ctx( array( 'files:read' ) ) ) );
+		$this->assertSame( 0, $denied['count'] );
+
+		$allowed = $this->data( $tool->execute( array( 'pattern' => 'DB_' ), $this->ctx( array( 'files:read', 'db:read' ) ) ) );
+		$this->assertSame( 1, $allowed['count'] );
+		$this->assertSame( 'wp-config.php', $allowed['matches'][0]['path'] );
+	}
+
+	public function test_search_end_anchor_matches_crlf_lines(): void {
+		file_put_contents( $this->root . '/crlf.txt', "foo\r\nbar\r\n" );
+		$data = $this->data( ( new FileSearch( new PathJail( $this->root ), $this->safe() ) )->execute( array( 'pattern' => 'foo$', 'glob' => 'crlf.txt' ), $this->ctx() ) );
+		$this->assertSame( 1, $data['count'] );
+		$this->assertSame( 'foo', $data['matches'][0]['text'] );
+	}
+
+	public function test_read_reports_line_ending(): void {
+		file_put_contents( $this->root . '/crlf.txt', "one\r\ntwo\r\n" );
+		$tool = new FileRead( new PathJail( $this->root ), $this->safe() );
+
+		$crlf = $this->data( $tool->execute( array( 'path' => 'crlf.txt' ), $this->ctx() ) );
+		$this->assertSame( 'crlf', $crlf['line_ending'] );
+		$this->assertSame( "one\ntwo", $crlf['content'] );
+
+		$lf = $this->data( $tool->execute( array( 'path' => 'wp-content/themes/t/style.css' ), $this->ctx() ) );
+		$this->assertSame( 'lf', $lf['line_ending'] );
+	}
+
+	public function test_edit_lf_old_string_matches_crlf_file_and_keeps_crlf(): void {
+		file_put_contents( $this->root . '/crlf.txt', "one\r\ntwo\r\nthree\r\n" );
+		$tool = new FileEdit( new PathJail( $this->root ), $this->safe() );
+
+		$result = $this->data( $tool->execute( array( 'path' => 'crlf.txt', 'old_string' => "one\ntwo", 'new_string' => "uno\ndos" ), $this->ctx() ) );
+		$this->assertSame( 1, $result['replacements'] );
+		$this->assertSame( "uno\r\ndos\r\nthree\r\n", file_get_contents( $this->root . '/crlf.txt' ) );
+
+		$missing = $tool->execute( array( 'path' => 'crlf.txt', 'old_string' => "nope\nnope", 'new_string' => 'x' ), $this->ctx() );
+		$this->assertTrue( $missing->isError() );
+		$this->assertSame( 'old_string was not found in crlf.txt.', $missing->text() );
 	}
 }

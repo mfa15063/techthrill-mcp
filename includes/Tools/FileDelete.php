@@ -48,12 +48,23 @@ final class FileDelete extends AbstractFileTool {
 
 	public function execute( array $args, ToolContext $ctx ): ToolResult {
 		try {
-			$target = $this->jail->resolve( (string) ( $args['path'] ?? '' ) );
+			$normalized = $this->jail->normalize( (string) ( $args['path'] ?? '' ) );
+			if ( '.' === $normalized ) {
+				return $this->fail( 'The WordPress root cannot be deleted.' );
+			}
+
+			// Resolve the parent only, so a symlink leaf is deleted itself rather than its target.
+			$name   = basename( $normalized );
+			$parent = $this->jail->resolve( dirname( $normalized ) );
+			$leaf   = rtrim( $parent->absolute, '/\\' ) . DIRECTORY_SEPARATOR . $name;
+			if ( is_link( $leaf ) ) {
+				$link = ( '.' === $parent->relative ? '' : $parent->relative . '/' ) . $name;
+				return $this->deleteLink( $leaf, $link );
+			}
+
+			$target = $this->jail->resolve( $normalized );
 		} catch ( PathException $e ) {
 			return $this->fail( $e->getMessage() );
-		}
-		if ( '.' === $target->relative ) {
-			return $this->fail( 'The WordPress root cannot be deleted.' );
 		}
 
 		$refusal = $this->safeMode->checkPathWrite( $target->relative );
@@ -100,6 +111,30 @@ final class FileDelete extends AbstractFileTool {
 				'path'    => $target->relative,
 				'deleted' => true,
 				'type'    => 'dir',
+			)
+		);
+	}
+
+	/**
+	 * Deletes a symlink itself, never what it points to.
+	 *
+	 * @param string $absolute Absolute path of the link.
+	 * @param string $relative Root-relative path of the link.
+	 */
+	private function deleteLink( string $absolute, string $relative ): ToolResult {
+		$refusal = $this->safeMode->checkPathWrite( $relative );
+		if ( null !== $refusal ) {
+			return $this->fail( $refusal->reason() );
+		}
+		// Directory symlinks need rmdir on Windows.
+		if ( ! @unlink( $absolute ) && ! @rmdir( $absolute ) ) {
+			return $this->fail( 'Could not delete ' . $relative . '.' );
+		}
+		return $this->ok(
+			array(
+				'path'    => $relative,
+				'deleted' => true,
+				'type'    => 'link',
 			)
 		);
 	}

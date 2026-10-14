@@ -109,6 +109,7 @@ final class FileRead extends AbstractFileTool {
 				'total_lines' => $total,
 				'offset'      => $offset,
 				'truncated'   => $offset - 1 + $limit < $total,
+				'line_ending' => false !== strpos( $text, "\r\n" ) ? 'crlf' : 'lf',
 			)
 		);
 	}
