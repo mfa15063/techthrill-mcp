@@ -17,6 +17,7 @@ use TechThrill\MCP\Logging\AuditLog;
 use TechThrill\MCP\Mcp\RestController;
 use TechThrill\MCP\Mcp\SchemaValidator;
 use TechThrill\MCP\Mcp\Server;
+use TechThrill\MCP\Safety\CommandParser;
 use TechThrill\MCP\Safety\HostCapabilities;
 use TechThrill\MCP\Safety\PathJail;
 use TechThrill\MCP\Safety\SafeMode;
@@ -30,9 +31,11 @@ use TechThrill\MCP\Tools\FileList;
 use TechThrill\MCP\Tools\FileRead;
 use TechThrill\MCP\Tools\FileSearch;
 use TechThrill\MCP\Tools\FileWrite;
+use TechThrill\MCP\Tools\ProcOpenRunner;
 use TechThrill\MCP\Tools\SiteInfo;
 use TechThrill\MCP\Tools\ToolRegistry;
 use TechThrill\MCP\Tools\ToolResult;
+use TechThrill\MCP\Tools\WpCli;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -107,7 +110,8 @@ final class Plugin {
 		$this->path_jail = new PathJail( ABSPATH );
 
 		$uploads                 = wp_upload_dir( null, false );
-		$this->host_capabilities = new HostCapabilities( $this->settings, (string) ( $uploads['basedir'] ?? '' ) );
+		$uploads_dir             = (string) ( $uploads['basedir'] ?? '' );
+		$this->host_capabilities = new HostCapabilities( $this->settings, $uploads_dir );
 
 		$plugin_relative_dir = trim( str_replace( wp_normalize_path( ABSPATH ), '', wp_normalize_path( TECHTHRILL_MCP_DIR ) ), '/' );
 		$this->safe_mode     = new SafeMode( (bool) $this->settings->get( 'safe_mode' ), $plugin_relative_dir );
@@ -131,6 +135,16 @@ final class Plugin {
 		foreach ( array( FileList::class, FileRead::class, FileSearch::class, FileWrite::class, FileEdit::class, FileDelete::class ) as $file_tool ) {
 			$registry->register( new $file_tool( $this->path_jail, $this->safe_mode ) );
 		}
+		$registry->register(
+			new WpCli(
+				new CommandParser(),
+				$this->safe_mode,
+				$this->host_capabilities,
+				new ProcOpenRunner(),
+				$this->settings,
+				rtrim( $uploads_dir, '/\\' ) . '/techthrill-mcp/cache'
+			)
+		);
 		$filtered = apply_filters( 'techthrill_mcp_tools', $registry );
 		if ( $filtered instanceof ToolRegistry ) {
 			$registry = $filtered;
