@@ -7,9 +7,11 @@
 
 namespace TechThrill\MCP;
 
+use TechThrill\MCP\Admin\Menu;
 use TechThrill\MCP\Auth\Authenticator;
 use TechThrill\MCP\Auth\RateLimiter;
 use TechThrill\MCP\Auth\TokenManager;
+use TechThrill\MCP\Auth\TokenRepository;
 use TechThrill\MCP\Auth\TransientRateLimitStore;
 use TechThrill\MCP\Auth\WpTokenRepository;
 use TechThrill\MCP\Logging\ArgumentSummarizer;
@@ -79,6 +81,8 @@ final class Plugin {
 
 	private TokenManager $token_manager;
 
+	private TokenRepository $token_repository;
+
 	private function __construct() {}
 
 	/**
@@ -116,7 +120,8 @@ final class Plugin {
 		$plugin_relative_dir = trim( str_replace( wp_normalize_path( ABSPATH ), '', wp_normalize_path( TECHTHRILL_MCP_DIR ) ), '/' );
 		$this->safe_mode     = new SafeMode( (bool) $this->settings->get( 'safe_mode' ), $plugin_relative_dir );
 
-		$this->token_manager = new TokenManager( new WpTokenRepository( $wpdb ) );
+		$this->token_repository = new WpTokenRepository( $wpdb );
+		$this->token_manager    = new TokenManager( $this->token_repository );
 		$limiter             = new RateLimiter( (int) $this->settings->get( 'rate_limit' ), new TransientRateLimitStore() );
 		$authenticator       = new Authenticator(
 			$this->token_manager,
@@ -178,6 +183,10 @@ final class Plugin {
 				$audit_log->prune( (int) $settings->get( 'log_retention_days' ) );
 			}
 		);
+
+		if ( is_admin() ) {
+			( new Menu( $this ) )->register();
+		}
 	}
 
 	/**
@@ -222,5 +231,9 @@ final class Plugin {
 
 	public function tokenManager(): TokenManager {
 		return $this->token_manager;
+	}
+
+	public function tokenRepository(): TokenRepository {
+		return $this->token_repository;
 	}
 }
