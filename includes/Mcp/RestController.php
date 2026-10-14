@@ -74,6 +74,54 @@ final class RestController {
 		);
 
 		add_filter( 'rest_authentication_errors', array( $this, 'bypassCookieAuth' ), 100 );
+		add_filter( 'rest_request_before_callbacks', array( $this, 'allowInvalidJson' ), 10, 3 );
+		add_filter( 'rest_post_dispatch', array( $this, 'fixAllowHeader' ), 20, 3 );
+	}
+
+	/**
+	 * Lets malformed JSON reach handle(), which answers with a JSON-RPC parse error after authenticating.
+	 *
+	 * WordPress rejects invalid JSON with a rest_invalid_json error before the route callback runs.
+	 *
+	 * @param mixed            $response Response or error so far.
+	 * @param mixed            $handler  Matched route handler.
+	 * @param \WP_REST_Request $request  Request.
+	 * @return mixed Null for an invalid-JSON error on the MCP route, otherwise $response unchanged.
+	 */
+	public function allowInvalidJson( $response, $handler, $request ) {
+		if (
+			$response instanceof \WP_Error
+			&& 'rest_invalid_json' === $response->get_error_code()
+			&& $request instanceof \WP_REST_Request
+			&& $this->is_mcp_request_route( $request )
+		) {
+			return null;
+		}
+
+		return $response;
+	}
+
+	/**
+	 * Restores `Allow: POST` on the 405 response; core rewrites it to the route's registered methods.
+	 *
+	 * @param mixed            $response Response.
+	 * @param mixed            $server   REST server.
+	 * @param \WP_REST_Request $request  Request.
+	 * @return mixed
+	 */
+	public function fixAllowHeader( $response, $server, $request ) {
+		if (
+			is_object( $response )
+			&& method_exists( $response, 'get_status' )
+			&& method_exists( $response, 'header' )
+			&& 405 === $response->get_status()
+			&& $request instanceof \WP_REST_Request
+			&& $this->is_mcp_request_route( $request )
+		) {
+			$response->header( 'Allow', 'POST' );
+		}
+
+		return $response;
 	}
 
 	/**
@@ -114,6 +162,9 @@ final class RestController {
 	 * @param \WP_REST_Request $request Request.
 	 */
 	private function handle_post( \WP_REST_Request $request ): \WP_REST_Response {
+		// Forget any token id from earlier in this process so a failed authentication never inherits one.
+		$this->notify_token( 0 );
+
 		$auth = $this->auth->authenticate( $this->authorization_header( $request ) );
 		if ( ! $auth->isOk() ) {
 			$response = new \WP_REST_Response( JsonRpcError::envelope( null, $auth->code(), $auth->message() ), $auth->status() );
@@ -134,9 +185,7 @@ final class RestController {
 		wp_set_current_user( (int) $row['user_id'] );
 
 		$token_id = (int) $row['id'];
-		if ( null !== $this->on_authenticated ) {
-			call_user_func( $this->on_authenticated, $token_id );
-		}
+		$this->notify_token( $token_id );
 
 		$ctx    = new ToolContext( $token_id, (int) $row['user_id'], $auth->scopes() );
 		$result = $this->server->handle( $decoded, $ctx );
@@ -176,25 +225,31 @@ final class RestController {
 	private function is_mcp_route(): bool {
 		$target = '/' . self::REST_NAMESPACE . self::ROUTE;
 
-		$wp    = $GLOBALS['wp'] ?? null;
-		$route = '';
-		if ( is_object( $wp ) && isset( $wp->query_vars['rest_route'] ) && is_string( $wp->query_vars['rest_route'] ) ) {
-			$route = $wp->query_vars['rest_route'];
-		}
-		if ( '' !== $route ) {
-			return '/' . trim( $route, '/' ) === $target;
-		}
-
-		// Fall back to the request path only (never the query string, which a caller controls).
-		if ( ! isset( $_SERVER['REQUEST_URI'] ) || ! is_string( $_SERVER['REQUEST_URI'] ) ) {
+		$wp = $GLOBALS['wp'] ?? null;
+		if ( ! is_object( $wp ) || ! isset( $wp->query_vars['rest_route'] ) || ! is_string( $wp->query_vars['rest_route'] ) ) {
 			return false;
 		}
-		$path = wp_parse_url( sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ), PHP_URL_PATH );
-		if ( ! is_string( $path ) ) {
-			return false;
-		}
-		$path = rtrim( $path, '/' );
 
-		return strlen( $path ) >= strlen( $target ) && substr( $path, -strlen( $target ) ) === $target;
+		return '/' . trim( $wp->query_vars['rest_route'], '/' ) === $target;
+	}
+
+	/**
+	 * Whether a dispatched request matched the MCP route.
+	 *
+	 * @param \WP_REST_Request $request Request.
+	 */
+	private function is_mcp_request_route( \WP_REST_Request $request ): bool {
+		return '/' . self::REST_NAMESPACE . self::ROUTE === $request->get_route();
+	}
+
+	/**
+	 * Reports the token id of the request being handled (0 when none) to the observer.
+	 *
+	 * @param int $token_id Token id.
+	 */
+	private function notify_token( int $token_id ): void {
+		if ( null !== $this->on_authenticated ) {
+			call_user_func( $this->on_authenticated, $token_id );
+		}
 	}
 }

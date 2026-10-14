@@ -22,16 +22,27 @@ if ( ! class_exists( 'WP_REST_Request' ) ) {
 		private $body;
 
 		/**
+		 * @var string
+		 */
+		private $route;
+
+		/**
 		 * @param string               $method  HTTP method.
 		 * @param array<string,string> $headers Headers keyed by name (any case, dashes or underscores).
 		 * @param string               $body    Raw body.
+		 * @param string               $route   Matched route, for example /techthrill-mcp/v1/mcp.
 		 */
-		public function __construct( $method = 'POST', array $headers = array(), $body = '' ) {
+		public function __construct( $method = 'POST', array $headers = array(), $body = '', $route = '' ) {
 			$this->method = $method;
 			$this->body   = $body;
+			$this->route  = $route;
 			foreach ( $headers as $key => $value ) {
 				$this->headers[ self::canonical( $key ) ] = $value;
 			}
+		}
+
+		public function get_route() {
+			return $this->route;
 		}
 
 		public function get_method() {
@@ -50,6 +61,27 @@ if ( ! class_exists( 'WP_REST_Request' ) ) {
 
 		private static function canonical( $key ) {
 			return str_replace( '-', '_', strtolower( $key ) );
+		}
+	}
+}
+
+if ( ! class_exists( 'WP_Error' ) ) {
+	class WP_Error {
+
+		private $code;
+
+		private $message;
+
+		private $data;
+
+		public function __construct( $code = '', $message = '', $data = '' ) {
+			$this->code    = $code;
+			$this->message = $message;
+			$this->data    = $data;
+		}
+
+		public function get_error_code() {
+			return $this->code;
 		}
 	}
 }

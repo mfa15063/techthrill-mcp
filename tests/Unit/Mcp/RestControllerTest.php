@@ -227,7 +227,7 @@ class RestControllerTest extends TestCase {
 		$this->assertSame( 7, $seen->user_id );
 		$this->assertSame( $this->token_id, $seen->token_id );
 		$this->assertSame( array( 'db:read' ), $seen->scopes );
-		$this->assertSame( array( $this->token_id ), $this->seen_token_ids );
+		$this->assertSame( array( 0, $this->token_id ), $this->seen_token_ids );
 	}
 
 	public function test_exception_from_the_server_becomes_internal_error(): void {
@@ -291,6 +291,8 @@ class RestControllerTest extends TestCase {
 		$this->assertSame( '__return_true', $args['permission_callback'] );
 		$this->assertFalse( $args['show_in_index'] );
 		$this->assertCount( 1, $GLOBALS['ttm_filters']['rest_authentication_errors'] );
+		$this->assertCount( 1, $GLOBALS['ttm_filters']['rest_request_before_callbacks'] );
+		$this->assertCount( 1, $GLOBALS['ttm_filters']['rest_post_dispatch'] );
 	}
 
 	public function test_cookie_auth_is_bypassed_only_for_the_mcp_route(): void {
@@ -304,15 +306,60 @@ class RestControllerTest extends TestCase {
 		$this->assertSame( $error, $controller->bypassCookieAuth( $error ) );
 		$this->assertNull( $controller->bypassCookieAuth( null ) );
 
-		// Without a parsed route, only the request path counts, never the query string.
-		unset( $GLOBALS['wp'] );
+		// Without a parsed rest_route the value is left alone, whatever REQUEST_URI says.
 		$_SERVER['REQUEST_URI'] = '/wp-json/techthrill-mcp/v1/mcp';
-		$this->assertTrue( $controller->bypassCookieAuth( null ) );
-
-		$_SERVER['REQUEST_URI'] = '/wp-json/wp/v2/posts?x=/techthrill-mcp/v1/mcp';
+		$GLOBALS['wp']          = (object) array( 'query_vars' => array() );
 		$this->assertSame( $error, $controller->bypassCookieAuth( $error ) );
 
-		unset( $_SERVER['REQUEST_URI'] );
+		unset( $GLOBALS['wp'] );
+		$this->assertSame( $error, $controller->bypassCookieAuth( $error ) );
 		$this->assertNull( $controller->bypassCookieAuth( null ) );
+	}
+
+	public function test_invalid_json_error_is_let_through_on_the_mcp_route_only(): void {
+		$controller = $this->controller();
+		$error      = new \WP_Error( 'rest_invalid_json', 'Invalid JSON body passed.', array( 'status' => 400 ) );
+		$mcp        = new \WP_REST_Request( 'POST', array(), '{bad', '/techthrill-mcp/v1/mcp' );
+		$other      = new \WP_REST_Request( 'POST', array(), '{bad', '/wp/v2/posts' );
+
+		$this->assertNull( $controller->allowInvalidJson( $error, array(), $mcp ) );
+		$this->assertSame( $error, $controller->allowInvalidJson( $error, array(), $other ) );
+
+		$other_error = new \WP_Error( 'rest_forbidden', 'Nope.' );
+		$this->assertSame( $other_error, $controller->allowInvalidJson( $other_error, array(), $mcp ) );
+
+		$ok = new \WP_REST_Response( array(), 200 );
+		$this->assertSame( $ok, $controller->allowInvalidJson( $ok, array(), $mcp ) );
+		$this->assertNull( $controller->allowInvalidJson( null, array(), $mcp ) );
+	}
+
+	public function test_allow_header_is_restored_on_the_405_for_the_mcp_route_only(): void {
+		$controller = $this->controller();
+		$mcp        = new \WP_REST_Request( 'GET', array(), '', '/techthrill-mcp/v1/mcp' );
+		$other      = new \WP_REST_Request( 'GET', array(), '', '/wp/v2/posts' );
+
+		$response = new \WP_REST_Response( array(), 405 );
+		$response->header( 'Allow', 'POST, GET' );
+		$this->assertSame( $response, $controller->fixAllowHeader( $response, null, $mcp ) );
+		$this->assertSame( 'POST', $response->get_headers()['Allow'] );
+
+		$other_route = new \WP_REST_Response( array(), 405 );
+		$other_route->header( 'Allow', 'POST, GET' );
+		$controller->fixAllowHeader( $other_route, null, $other );
+		$this->assertSame( 'POST, GET', $other_route->get_headers()['Allow'] );
+
+		$not_405 = new \WP_REST_Response( array(), 200 );
+		$not_405->header( 'Allow', 'POST, GET' );
+		$controller->fixAllowHeader( $not_405, null, $mcp );
+		$this->assertSame( 'POST, GET', $not_405->get_headers()['Allow'] );
+	}
+
+	public function test_token_id_is_reset_to_zero_before_authentication(): void {
+		$this->controller()->handle( $this->post( self::INITIALIZE, 'ttm_' . str_repeat( 'z', 40 ) ) );
+		$this->assertSame( array( 0 ), $this->seen_token_ids );
+
+		$this->controller()->handle( $this->post( self::INITIALIZE, null ) );
+		$this->assertSame( array( 0, 0 ), $this->seen_token_ids );
+		$this->assertSame( 0, end( $this->seen_token_ids ) );
 	}
 }
