@@ -191,8 +191,7 @@ class DbToolsTest extends TestCase {
 
 	public function test_schema_rejects_table_name_with_trailing_newline(): void {
 		$schema = new DbSchema( $this->db );
-		$result = $schema->execute( array( 'table' => "wp_posts
-" ), $this->ctx() );
+		$result = $schema->execute( array( 'table' => "wp_posts\n" ), $this->ctx() );
 		$this->assertTrue( $result->isError() );
 		$this->assertSame( 'Invalid table name.', $result->text() );
 		$this->assertSame( array(), $this->db->queries );
