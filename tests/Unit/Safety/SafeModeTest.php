@@ -164,4 +164,34 @@ class SafeModeTest extends TestCase {
 		$this->assertNull( $off->checkCli( array( 'db', 'reset' ) ) );
 		$this->assertArrayNotHasKey( 'techthrill_mcp_blocked_cli_commands', $calls );
 	}
+
+	public function test_protected_paths_filter_returning_non_array_keeps_defaults(): void {
+		$filter = function ( $hook, $value ) {
+			return 'techthrill_mcp_protected_paths' === $hook ? null : $value;
+		};
+		$mode = new SafeMode( true, self::PLUGIN_DIR, null, $filter );
+		$this->assertNotNull( $mode->checkPathWrite( '.htaccess' ) );
+		$this->assertNotNull( $mode->checkPathWrite( 'wp-content/uploads/techthrill-mcp/a.log' ) );
+		$this->assertNotNull( $mode->checkPathWrite( self::PLUGIN_DIR . '/a.php' ) );
+	}
+
+	public function test_protected_paths_filter_ignores_non_string_entries(): void {
+		$filter = function ( $hook, $value ) {
+			return 'techthrill_mcp_protected_paths' === $hook ? array( null, array( 'x' ), '.htaccess' ) : $value;
+		};
+		$mode = new SafeMode( true, self::PLUGIN_DIR, null, $filter );
+		$this->assertNotNull( $mode->checkPathWrite( '.htaccess' ) );
+		$this->assertNull( $mode->checkPathWrite( 'wp-content/themes/x/style.css' ) );
+	}
+
+	public function test_cli_filter_with_non_string_entries_does_not_throw(): void {
+		$filter = function ( $hook, $value ) {
+			return 'techthrill_mcp_blocked_cli_commands' === $hook ? array( 'db reset', null, array( 'x' ) ) : $value;
+		};
+		$mode = new SafeMode( true, self::PLUGIN_DIR, null, $filter );
+		$r    = $mode->checkCli( array( 'db', 'reset' ) );
+		$this->assertNotNull( $r );
+		$this->assertStringContainsString( '"wp db reset"', $r->reason() );
+		$this->assertNull( $mode->checkCli( array( 'post', 'list' ) ) );
+	}
 }

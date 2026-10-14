@@ -153,7 +153,7 @@ final class SafeMode {
 		}
 
 		$list = call_user_func( $this->filter, 'techthrill_mcp_blocked_cli_commands', self::SAFE_MODE_BLOCKED_CLI );
-		$list = is_array( $list ) ? $list : self::SAFE_MODE_BLOCKED_CLI;
+		$list = array_values( array_filter( is_array( $list ) ? $list : self::SAFE_MODE_BLOCKED_CLI, 'is_string' ) );
 
 		$entry = $this->parser->firstBlocked( $argv, $list );
 		if ( null === $entry ) {
@@ -180,12 +180,12 @@ final class SafeMode {
 			return null;
 		}
 
-		$list = array_merge( self::PROTECTED_SAFE_MODE, array( $this->pluginRelativeDir ) );
-		$list = call_user_func( $this->filter, 'techthrill_mcp_protected_paths', $list );
-		$list = is_array( $list ) ? $list : array();
+		$default = array_merge( self::PROTECTED_SAFE_MODE, array( $this->pluginRelativeDir ) );
+		$list    = call_user_func( $this->filter, 'techthrill_mcp_protected_paths', $default );
+		$list    = array_values( array_filter( is_array( $list ) ? $list : $default, 'is_string' ) );
 
 		foreach ( $list as $entry ) {
-			if ( is_string( $entry ) && $this->matches( $path, $entry ) ) {
+			if ( $this->matches( $path, $entry ) ) {
 				return new Refusal( 'Refused by safe mode: writing to `' . $relative . '` is blocked because it is a protected location.' . self::SAFE_MODE_HINT );
 			}
 		}
