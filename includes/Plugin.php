@@ -24,6 +24,12 @@ use TechThrill\MCP\Safety\SqlClassifier;
 use TechThrill\MCP\Tools\DbExecute;
 use TechThrill\MCP\Tools\DbQuery;
 use TechThrill\MCP\Tools\DbSchema;
+use TechThrill\MCP\Tools\FileDelete;
+use TechThrill\MCP\Tools\FileEdit;
+use TechThrill\MCP\Tools\FileList;
+use TechThrill\MCP\Tools\FileRead;
+use TechThrill\MCP\Tools\FileSearch;
+use TechThrill\MCP\Tools\FileWrite;
 use TechThrill\MCP\Tools\SiteInfo;
 use TechThrill\MCP\Tools\ToolRegistry;
 use TechThrill\MCP\Tools\ToolResult;
@@ -122,6 +128,9 @@ final class Plugin {
 		$registry->register( new DbQuery( $wpdb, $classifier ) );
 		$registry->register( new DbExecute( $wpdb, $classifier, $this->safe_mode ) );
 		$registry->register( new DbSchema( $wpdb ) );
+		foreach ( array( FileList::class, FileRead::class, FileSearch::class, FileWrite::class, FileEdit::class, FileDelete::class ) as $file_tool ) {
+			$registry->register( new $file_tool( $this->path_jail, $this->safe_mode ) );
+		}
 		$filtered = apply_filters( 'techthrill_mcp_tools', $registry );
 		if ( $filtered instanceof ToolRegistry ) {
 			$registry = $filtered;
