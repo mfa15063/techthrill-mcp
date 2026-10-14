@@ -34,6 +34,21 @@ class HostCapabilities {
 	 */
 	const PROCESS_FUNCTIONS = array( 'proc_open', 'proc_get_status', 'proc_terminate', 'proc_close' );
 
+	/**
+	 * SAPIs whose PHP_BINARY is a command-line PHP that can run a phar.
+	 */
+	const CLI_SAPIS = array( 'cli', 'cli-server', 'phpdbg' );
+
+	/**
+	 * CLI PHP names looked up on PATH on POSIX hosts, in order.
+	 */
+	const POSIX_PHP_NAMES = array( 'php', 'php8.3', 'php83', 'php8.2', 'php82', 'php8.1', 'php81', 'php8.0', 'php80', 'php7.4', 'php74' );
+
+	/**
+	 * CLI PHP names looked up on PATH on Windows.
+	 */
+	const WINDOWS_PHP_NAMES = array( 'php.exe' );
+
 	private Settings $settings;
 
 	private string $uploads_dir;
@@ -46,6 +61,10 @@ class HostCapabilities {
 
 	private ?bool $is_ssl;
 
+	private ?string $sapi;
+
+	private ?string $php_bindir;
+
 	/**
 	 * The optional arguments exist for tests; when null they are read lazily from the environment.
 	 *
@@ -55,14 +74,18 @@ class HostCapabilities {
 	 * @param string|null $disable_functions PHP disable_functions ini value.
 	 * @param string|null $site_host         Host of the site's home URL.
 	 * @param bool|null   $is_ssl            Whether the current request is HTTPS.
+	 * @param string|null $sapi              Server API name (default: PHP_SAPI).
+	 * @param string|null $php_bindir        PHP binary directory (default: PHP_BINDIR).
 	 */
-	public function __construct( Settings $settings, string $uploads_dir, ?string $path_env = null, ?string $disable_functions = null, ?string $site_host = null, ?bool $is_ssl = null ) {
+	public function __construct( Settings $settings, string $uploads_dir, ?string $path_env = null, ?string $disable_functions = null, ?string $site_host = null, ?bool $is_ssl = null, ?string $sapi = null, ?string $php_bindir = null ) {
 		$this->settings          = $settings;
 		$this->uploads_dir       = $uploads_dir;
 		$this->path_env          = $path_env;
 		$this->disable_functions = $disable_functions;
 		$this->site_host         = $site_host;
 		$this->is_ssl            = $is_ssl;
+		$this->sapi              = $sapi;
+		$this->php_bindir        = $php_bindir;
 	}
 
 	/**
@@ -85,6 +108,7 @@ class HostCapabilities {
 	 * Argument-vector prefix that launches WP-CLI, or null when none is available.
 	 *
 	 * Order: the cli_path setting, a `wp` executable on PATH, the downloaded phar.
+	 * A phar is only used when a command-line PHP is available to run it.
 	 *
 	 * @return string[]|null
 	 */
@@ -100,10 +124,17 @@ class HostCapabilities {
 		}
 
 		if ( '' !== $this->pharPath() && is_file( $this->pharPath() ) ) {
-			return array( PHP_BINARY, $this->pharPath() );
+			return $this->pharCommand( $this->pharPath() );
 		}
 
 		return null;
+	}
+
+	/**
+	 * Command-line PHP binary used to run wp-cli.phar, or null when none is found.
+	 */
+	public function phpBinary(): ?string {
+		return $this->phpCli();
 	}
 
 	/**
@@ -158,9 +189,57 @@ class HostCapabilities {
 		return array(
 			'exec_available' => $this->execAvailable(),
 			'wp_binary'      => null === $binary ? null : implode( ' ', $binary ),
+			'php_binary'     => $this->phpBinary(),
 			'https'          => $this->isHttps(),
 			'local_host'     => $this->isLocalHost(),
 		);
+	}
+
+	/**
+	 * Argument-vector prefix that runs a phar through the command-line PHP, or null without one.
+	 *
+	 * @param string $phar Phar path.
+	 * @return string[]|null
+	 */
+	private function pharCommand( string $phar ): ?array {
+		$php = $this->phpCli();
+
+		return null === $php ? null : array( $php, $phar );
+	}
+
+	/**
+	 * Finds a command-line PHP binary.
+	 *
+	 * Order: the php_path setting; PHP_BINARY when the current SAPI is a CLI one (under php-fpm,
+	 * mod_php or CGI it is not a CLI binary); a php binary on PATH; the php next to PHP_BINDIR.
+	 */
+	private function phpCli(): ?string {
+		$windows = '\\' === DIRECTORY_SEPARATOR;
+
+		$configured = (string) $this->settings->get( 'php_path' );
+		if ( '' !== $configured && is_file( $configured ) && ( $windows || is_executable( $configured ) ) ) {
+			return $configured;
+		}
+
+		$sapi = null !== $this->sapi ? $this->sapi : PHP_SAPI;
+		if ( in_array( $sapi, self::CLI_SAPIS, true ) && '' !== PHP_BINARY && is_file( PHP_BINARY ) ) {
+			return PHP_BINARY;
+		}
+
+		$found = $this->findInPath( $windows ? self::WINDOWS_PHP_NAMES : self::POSIX_PHP_NAMES );
+		if ( null !== $found ) {
+			return $found;
+		}
+
+		$bindir = null !== $this->php_bindir ? $this->php_bindir : PHP_BINDIR;
+		if ( '' !== $bindir ) {
+			$candidate = rtrim( $bindir, '/\\' ) . ( $windows ? '/php.exe' : '/php' );
+			if ( is_file( $candidate ) ) {
+				return $candidate;
+			}
+		}
+
+		return null;
 	}
 
 	/**
@@ -185,7 +264,7 @@ class HostCapabilities {
 			return array( $configured );
 		}
 		if ( 'phar' === $extension ) {
-			return array( PHP_BINARY, $configured );
+			return $this->pharCommand( $configured );
 		}
 
 		return null;
@@ -208,36 +287,71 @@ class HostCapabilities {
 	}
 
 	/**
+	 * The PATH directories, trimmed, without empty entries.
+	 *
+	 * @return string[]
+	 */
+	private function pathDirs(): array {
+		$path = null !== $this->path_env ? $this->path_env : (string) getenv( 'PATH' );
+		if ( '' === $path ) {
+			return array();
+		}
+
+		$dirs = array();
+		foreach ( explode( PATH_SEPARATOR, $path ) as $dir ) {
+			$dir = trim( $dir, " \t\"" );
+			if ( '' !== $dir ) {
+				$dirs[] = $dir;
+			}
+		}
+
+		return $dirs;
+	}
+
+	/**
+	 * First file with one of the names in a PATH directory (executable on POSIX), or null.
+	 *
+	 * @param string[] $names    File names, in order of preference within a directory.
+	 * @param string   $only_dir Restrict the scan to this directory (empty: every PATH directory).
+	 */
+	private function findInPath( array $names, string $only_dir = '' ): ?string {
+		$windows = '\\' === DIRECTORY_SEPARATOR;
+		$dirs    = '' !== $only_dir ? array( $only_dir ) : $this->pathDirs();
+
+		foreach ( $dirs as $dir ) {
+			foreach ( $names as $name ) {
+				$candidate = rtrim( $dir, '/\\' ) . '/' . $name;
+				if ( is_file( $candidate ) && ( $windows || is_executable( $candidate ) ) ) {
+					return $candidate;
+				}
+			}
+		}
+
+		return null;
+	}
+
+	/**
 	 * Scans the PATH directories for a WP-CLI executable without running anything.
 	 *
 	 * @return string[]|null
 	 */
 	private function findOnPath(): ?array {
-		$path = null !== $this->path_env ? $this->path_env : (string) getenv( 'PATH' );
-		if ( '' === $path ) {
-			return null;
-		}
-
 		$windows = '\\' === DIRECTORY_SEPARATOR;
 		$names   = $windows ? self::WINDOWS_NAMES : array( 'wp' );
 
-		foreach ( explode( PATH_SEPARATOR, $path ) as $dir ) {
-			$dir = trim( $dir, " \t\"" );
-			if ( '' === $dir ) {
-				continue;
-			}
-
-			foreach ( $names as $name ) {
-				$candidate = rtrim( $dir, '/\\' ) . '/' . $name;
-				if ( is_file( $candidate ) && ( $windows || is_executable( $candidate ) ) ) {
-					return array( $candidate );
-				}
+		foreach ( $this->pathDirs() as $dir ) {
+			$found = $this->findInPath( $names, $dir );
+			if ( null !== $found ) {
+				return array( $found );
 			}
 
 			if ( $windows ) {
 				$phar = $this->siblingPhar( $dir );
 				if ( null !== $phar ) {
-					return array( PHP_BINARY, $phar );
+					$command = $this->pharCommand( $phar );
+					if ( null !== $command ) {
+						return $command;
+					}
 				}
 			}
 		}

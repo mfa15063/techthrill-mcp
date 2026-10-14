@@ -12,6 +12,7 @@ class SettingsTest extends TestCase {
 		$this->assertSame( 120, $defaults->get( 'rate_limit' ) );
 		$this->assertSame( 60, $defaults->get( 'cli_timeout' ) );
 		$this->assertSame( '', $defaults->get( 'cli_path' ) );
+		$this->assertSame( '', $defaults->get( 'php_path' ) );
 		$this->assertSame( 30, $defaults->get( 'log_retention_days' ) );
 		$this->assertNull( $defaults->get( 'nope' ) );
 
@@ -19,7 +20,7 @@ class SettingsTest extends TestCase {
 		$this->assertSame( 5, $custom->get( 'rate_limit' ) );
 		$this->assertSame( 60, $custom->get( 'cli_timeout' ) );
 		$this->assertSame( 5, $custom->all()['rate_limit'] );
-		$this->assertCount( 5, $custom->all() );
+		$this->assertCount( 6, $custom->all() );
 	}
 
 	public function test_sanitize_clamps(): void {
@@ -61,10 +62,11 @@ class SettingsTest extends TestCase {
 			)
 		);
 
-		$this->assertSame( array( 'safe_mode', 'rate_limit', 'cli_timeout', 'cli_path', 'log_retention_days' ), array_keys( $out ) );
+		$this->assertSame( array( 'safe_mode', 'rate_limit', 'cli_timeout', 'cli_path', 'php_path', 'log_retention_days' ), array_keys( $out ) );
 		$this->assertSame( 120, $out['rate_limit'] );
 		$this->assertSame( 45, $out['cli_timeout'] );
 		$this->assertSame( '', $out['cli_path'] );
+		$this->assertSame( '', $out['php_path'] );
 		$this->assertSame( 30, $out['log_retention_days'] );
 		// Unchecked checkbox is absent from the form post.
 		$this->assertSame( 0, $out['safe_mode'] );
@@ -79,5 +81,12 @@ class SettingsTest extends TestCase {
 		$out = Settings::sanitize( array( 'cli_path' => '  <b>/usr/bin/wp</b> ' ) );
 
 		$this->assertSame( '/usr/bin/wp', $out['cli_path'] );
+	}
+
+	public function test_sanitize_php_path_is_text_field_sanitized(): void {
+		$out = Settings::sanitize( array( 'php_path' => '  <i>/usr/bin/php8.2</i> ' ) );
+
+		$this->assertSame( '/usr/bin/php8.2', $out['php_path'] );
+		$this->assertSame( '', Settings::sanitize( array( 'php_path' => array( 'x' ) ) )['php_path'] );
 	}
 }

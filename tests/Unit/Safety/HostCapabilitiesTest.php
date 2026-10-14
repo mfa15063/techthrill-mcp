@@ -41,8 +41,29 @@ class HostCapabilitiesTest extends TestCase {
 		rmdir( $dir );
 	}
 
-	private function host( array $settings, string $uploads, string $path = '', string $disabled = '', string $site = 'example.com', bool $ssl = false ): HostCapabilities {
-		return new HostCapabilities( new Settings( $settings ), $uploads, $path, $disabled, $site, $ssl );
+	private function host( array $settings, string $uploads, string $path = '', string $disabled = '', string $site = 'example.com', bool $ssl = false, ?string $sapi = null, ?string $bindir = null ): HostCapabilities {
+		return new HostCapabilities( new Settings( $settings ), $uploads, $path, $disabled, $site, $ssl, $sapi, $bindir );
+	}
+
+	/**
+	 * Creates an uploads directory holding techthrill-mcp/wp-cli.phar.
+	 */
+	private function uploadsWithPhar(): string {
+		$uploads = $this->tempDir();
+		mkdir( $uploads . '/techthrill-mcp' );
+		file_put_contents( $uploads . '/techthrill-mcp/wp-cli.phar', '' );
+		return $uploads;
+	}
+
+	/**
+	 * Creates an executable placeholder file.
+	 *
+	 * @param string $path File path.
+	 */
+	private function executable( string $path ): string {
+		file_put_contents( $path, '' );
+		chmod( $path, 0755 );
+		return $path;
 	}
 
 	public function test_exec_available_when_not_disabled(): void {
@@ -192,7 +213,7 @@ class HostCapabilitiesTest extends TestCase {
 		mkdir( $uploads . '/techthrill-mcp' );
 		file_put_contents( $uploads . '/techthrill-mcp/wp-cli.phar', '' );
 
-		$host = $this->host( array(), $uploads . '/' );
+		$host = $this->host( array(), $uploads . '/', '', '', 'example.com', false, 'cli' );
 		$this->assertSame( $uploads . '/techthrill-mcp/wp-cli.phar', $host->pharPath() );
 		$this->assertSame( array( PHP_BINARY, $host->pharPath() ), $host->wpBinary() );
 	}
@@ -218,15 +239,87 @@ class HostCapabilitiesTest extends TestCase {
 		mkdir( $uploads . '/techthrill-mcp' );
 		file_put_contents( $uploads . '/techthrill-mcp/wp-cli.phar', '' );
 
-		$info = $this->host( array(), $uploads, '', 'exec', 'example.com', true )->toArray();
+		$info = $this->host( array(), $uploads, '', 'exec', 'example.com', true, 'cli' )->toArray();
 		$this->assertSame(
 			array(
 				'exec_available' => true,
 				'wp_binary'      => PHP_BINARY . ' ' . $uploads . '/techthrill-mcp/wp-cli.phar',
+				'php_binary'     => PHP_BINARY,
 				'https'          => true,
 				'local_host'     => false,
 			),
 			$info
 		);
+	}
+
+	public function test_php_path_setting_wins_for_the_phar(): void {
+		$uploads = $this->uploadsWithPhar();
+		$dir     = $this->tempDir();
+		$php     = $this->executable( $dir . ( DIRECTORY_SEPARATOR === '\\' ? '/custom-php.exe' : '/custom-php' ) );
+		$bin     = $this->tempDir();
+		$this->executable( $bin . ( DIRECTORY_SEPARATOR === '\\' ? '/php.exe' : '/php' ) );
+
+		$host = $this->host( array( 'php_path' => $php ), $uploads, $bin, '', 'example.com', false, 'cli' );
+		$this->assertSame( $php, $host->phpBinary() );
+		$this->assertSame( array( $php, $uploads . '/techthrill-mcp/wp-cli.phar' ), $host->wpBinary() );
+	}
+
+	public function test_unusable_php_path_setting_is_ignored(): void {
+		$uploads = $this->uploadsWithPhar();
+		$empty   = $this->tempDir();
+
+		$host = $this->host( array( 'php_path' => $empty . '/missing-php' ), $uploads, $empty, '', 'example.com', false, 'cli' );
+		$this->assertSame( PHP_BINARY, $host->phpBinary() );
+	}
+
+	public function test_non_cli_sapi_ignores_php_binary_and_scans_path(): void {
+		$uploads = $this->uploadsWithPhar();
+		$bin     = $this->tempDir();
+		$php     = $this->executable( $bin . ( DIRECTORY_SEPARATOR === '\\' ? '/php.exe' : '/php' ) );
+		$path    = $this->tempDir() . PATH_SEPARATOR . $bin;
+
+		$host = $this->host( array(), $uploads, $path, '', 'example.com', false, 'fpm-fcgi', $this->tempDir() );
+		$this->assertSame( $php, $host->phpBinary() );
+		$this->assertSame( array( $php, $uploads . '/techthrill-mcp/wp-cli.phar' ), $host->wpBinary() );
+	}
+
+	public function test_versioned_php_name_found_on_posix_path(): void {
+		if ( DIRECTORY_SEPARATOR === '\\' ) {
+			$this->markTestSkipped( 'Versioned PHP names are POSIX only.' );
+		}
+		$bin = $this->tempDir();
+		$php = $this->executable( $bin . '/php8.2' );
+
+		$host = $this->host( array(), $this->uploadsWithPhar(), $bin, '', 'example.com', false, 'apache2handler', $this->tempDir() );
+		$this->assertSame( $php, $host->phpBinary() );
+	}
+
+	public function test_php_bindir_is_the_last_resort(): void {
+		$bindir = $this->tempDir();
+		$php    = $this->executable( $bindir . ( DIRECTORY_SEPARATOR === '\\' ? '/php.exe' : '/php' ) );
+
+		$host = $this->host( array(), $this->uploadsWithPhar(), $this->tempDir(), '', 'example.com', false, 'cgi-fcgi', $bindir );
+		$this->assertSame( $php, $host->phpBinary() );
+	}
+
+	public function test_no_cli_php_skips_the_phar(): void {
+		$uploads = $this->uploadsWithPhar();
+
+		$host = $this->host( array(), $uploads, $this->tempDir(), '', 'example.com', false, 'fpm-fcgi', $this->tempDir() );
+		$this->assertNull( $host->phpBinary() );
+		$this->assertNull( $host->wpBinary() );
+		$this->assertNull( $host->toArray()['wp_binary'] );
+		$this->assertNull( $host->toArray()['php_binary'] );
+	}
+
+	public function test_windows_sibling_phar_without_cli_php_is_skipped(): void {
+		$this->skipUnlessWindows();
+		$dir = $this->tempDir();
+		$bin = $dir . '/bin';
+		mkdir( $bin );
+		file_put_contents( $bin . '/wp.bat', '' );
+		file_put_contents( $bin . '/wp-cli.phar', '' );
+
+		$this->assertNull( $this->host( array(), $dir, $bin, '', 'example.com', false, 'cgi-fcgi', $this->tempDir() )->wpBinary() );
 	}
 }

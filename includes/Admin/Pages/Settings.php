@@ -13,7 +13,7 @@ use TechThrill\MCP\Settings as PluginSettings;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Registers and renders the five plugin settings.
+ * Registers and renders the plugin settings.
  */
 final class Settings {
 
@@ -50,6 +50,7 @@ final class Settings {
 			'rate_limit'         => array( __( 'Rate limit per minute', 'techthrill-mcp' ), 'renderRateLimit' ),
 			'cli_timeout'        => array( __( 'WP-CLI timeout (seconds)', 'techthrill-mcp' ), 'renderCliTimeout' ),
 			'cli_path'           => array( __( 'WP-CLI binary path', 'techthrill-mcp' ), 'renderCliPath' ),
+			'php_path'           => array( __( 'PHP CLI binary path override', 'techthrill-mcp' ), 'renderPhpPath' ),
 			'log_retention_days' => array( __( 'Log retention (days)', 'techthrill-mcp' ), 'renderRetention' ),
 		);
 		foreach ( $fields as $key => $field ) {
@@ -89,6 +90,11 @@ final class Settings {
 	public function renderCliPath(): void {
 		echo '<input type="text" class="regular-text" id="ttm-cli_path" name="' . esc_attr( $this->name( 'cli_path' ) ) . '" value="' . esc_attr( (string) $this->value( 'cli_path' ) ) . '" />';
 		$this->description( __( 'Optional. Full path to a wp executable or wp-cli.phar. Leave empty to detect one automatically.', 'techthrill-mcp' ) );
+	}
+
+	public function renderPhpPath(): void {
+		echo '<input type="text" class="regular-text" id="ttm-php_path" name="' . esc_attr( $this->name( 'php_path' ) ) . '" value="' . esc_attr( (string) $this->value( 'php_path' ) ) . '" />';
+		$this->description( __( 'Used to run wp-cli.phar. Leave empty to auto-detect.', 'techthrill-mcp' ) );
 	}
 
 	public function renderRetention(): void {

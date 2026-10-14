@@ -21,6 +21,7 @@ final class Settings {
 		'rate_limit'         => 120,
 		'cli_timeout'        => 60,
 		'cli_path'           => '',
+		'php_path'           => '',
 		'log_retention_days' => 30,
 	);
 
@@ -70,7 +71,7 @@ final class Settings {
 	}
 
 	/**
-	 * Sanitizes raw form input into the five known settings.
+	 * Sanitizes raw form input into the known settings.
 	 *
 	 * @param array $input Raw input.
 	 */
@@ -80,7 +81,7 @@ final class Settings {
 		foreach ( self::DEFAULTS as $key => $default ) {
 			if ( 'safe_mode' === $key ) {
 				$out[ $key ] = empty( $input[ $key ] ) ? 0 : 1;
-			} elseif ( 'cli_path' === $key ) {
+			} elseif ( 'cli_path' === $key || 'php_path' === $key ) {
 				$out[ $key ] = isset( $input[ $key ] ) && is_scalar( $input[ $key ] )
 					? sanitize_text_field( (string) $input[ $key ] )
 					: $default;
