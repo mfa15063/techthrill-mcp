@@ -26,8 +26,8 @@ The endpoint is `POST /wp-json/techthrill-mcp/v1/mcp` with an `Authorization: Be
 = Safety in plain words =
 
 * No token, no access. A fresh install exposes nothing.
-* Safe mode is on by default. It refuses DELETE or UPDATE without a WHERE clause, destructive WP-CLI commands, deleting directories, and writes to protected paths.
-* File tools are jailed to the WordPress root, and `wp-config.php` can never be modified through them.
+* Safe mode is on by default. It refuses DELETE or UPDATE without a WHERE clause, destructive WP-CLI commands (including `db import`, `plugin delete` and `db export` to a file), deleting directories, and writes to protected paths.
+* File tools are jailed to the WordPress root, and `wp-config.php`, `wp-cli.yml` and `wp-cli.local.yml` can never be modified through them.
 * Every tool call is written to an activity log you can read and clear.
 * Requests are rate limited per token.
 
@@ -45,7 +45,7 @@ Developers can adjust the tool list, the blocked WP-CLI commands, the protected 
 
 = Does it work without WP-CLI? =
 
-Yes. The database and file tools work without it. Only `wp_cli` needs a WP-CLI binary and a host that allows running programs. The Connect page shows what your host supports. On Windows hosts that only have `wp.bat`, the plugin does not run batch files; use `wp.exe`, or the Download WP-CLI button on the Connect page.
+Yes. The database and file tools work without it. Only `wp_cli` needs a WP-CLI binary and a host that allows running programs. The Connect page shows what your host supports. On Windows hosts that only have `wp.bat`, the plugin does not run batch files; use `wp.exe`, or the Download WP-CLI button on the Connect page. The downloaded `wp-cli.phar` is run with a command-line PHP; if none is found automatically, set "PHP CLI binary path override" under Settings.
 
 = Is it safe? =
 
@@ -61,11 +61,19 @@ Activate the plugin per site. Tokens and activity logs are per site, while the f
 
 = What is removed when I delete the plugin? =
 
-Both database tables (tokens and activity log), the settings, and the scheduled cleanup event.
+Both database tables (tokens and activity log), the settings, the plugin's transients, and the scheduled cleanup event. On multisite only the current site's tables and options are removed; other sites in the network keep theirs until the plugin is deleted from each of them.
 
 == Security ==
 
 Nothing is exposed until you create a token. Tokens are stored only as SHA-256 hashes; the plain token is displayed once when you create it and cannot be recovered. Each token has scopes (`wp-cli`, `db:read`, `db:write`, `files:read`, `files:write`) and an optional expiry, and can be revoked at any time. Safe mode is on by default and refuses destructive operations until you turn it off. Every tool call, including refusals, is recorded in the audit log under TechThrill MCP > Activity and pruned after the retention period. The Connect page shows a warning when the site is not served over HTTPS; tokens are sent in a header, so use HTTPS on any public site.
+
+Treat the `wp-cli` scope as full access to the site: WP-CLI can read `wp-config.php` and install code. The `files:write` scope alone can also execute code, by editing theme or plugin files. Safe mode and protected paths guard against accidents, not against a malicious token holder, so only give these scopes to clients you trust as an administrator.
+
+For its own route only, this plugin bypasses other plugins' REST API lockdowns (for example "disable REST API for logged-out users"), because MCP clients do not send WordPress cookies. A valid bearer token is still required on that route, and the rest of the REST API is left as it is.
+
+Long WP-CLI runs may be cut short by the host's PHP `max_execution_time` or by a proxy or load balancer timeout, whatever the plugin's own WP-CLI timeout setting says.
+
+On multisite, deleting the plugin removes only the current site's tables.
 
 == Changelog ==
 

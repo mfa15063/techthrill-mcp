@@ -74,8 +74,8 @@ bearer_token_env_var = "TECHTHRILL_MCP_<SLUG>_TOKEN"
 
 ## Safety
 
-- **Safe mode** is on by default. While it is on, the plugin refuses: `DELETE` and `UPDATE` without a `WHERE` clause; `DROP` and `TRUNCATE`; the WP-CLI commands `db reset`, `db drop`, `db clean`, `site empty`, `core download`, `core update-db`, `plugin uninstall`, `theme delete`, `user delete`, `post delete --force` and `site delete`; deleting directories; and writes to protected paths. With safe mode off, destructive SQL still needs `confirm_destructive: true`.
-- **Protected paths:** `wp-config.php` can never be written or deleted through the file tools (and is readable only by a token that also has `db:read`). `.htaccess`, `wp-content/uploads/techthrill-mcp/` and the plugin's own directory are not writable while safe mode is on.
+- **Safe mode** is on by default. While it is on, the plugin refuses: `DELETE` and `UPDATE` without a `WHERE` clause; `DROP` and `TRUNCATE`; the WP-CLI commands `db reset`, `db drop`, `db clean`, `db import`, `site empty`, `core download`, `core update-db`, `plugin uninstall`, `plugin delete`, `theme delete`, `user delete`, `post delete --force` and `site delete`; `db export` to a file (use `db export --stdout` instead); deleting directories; and writes to protected paths. With safe mode off, destructive SQL still needs `confirm_destructive: true`.
+- **Protected paths:** `wp-config.php`, `wp-cli.yml` and `wp-cli.local.yml` can never be written or deleted through the file tools (`wp-config.php` is readable only by a token that also has `db:read`). `.htaccess`, `wp-content/uploads/techthrill-mcp/` and the plugin's own directory are not writable while safe mode is on.
 - **Scopes:** `wp-cli`, `db:read`, `db:write`, `files:read`, `files:write`. Presets on the Connect tab: Full access, Read only, Files only.
 - **Token binding:** tokens are stored only as SHA-256 hashes and shown once. They can expire, be revoked, and are rate limited per token. A token acts as the administrator who created it.
 - **Audit log:** every tool call, including refusals, is recorded (tool, short argument summary, ok / error / refused, duration) under TechThrill MCP > Activity and pruned after the retention period.
@@ -96,7 +96,7 @@ add_filter( 'techthrill_mcp_tools', function ( $registry ) {
 
 ```php
 add_filter( 'techthrill_mcp_blocked_cli_commands', function ( array $blocked ) {
-	$blocked[] = 'plugin delete';
+	$blocked[] = 'cron event run';
 	return $blocked;
 } );
 ```
@@ -127,9 +127,10 @@ Under TechThrill MCP > Settings (stored as the single option `techthrill_mcp_set
 - **Rate limit:** requests per minute per token. Default 120, `0` turns it off.
 - **WP-CLI timeout:** default seconds for `wp_cli` (default 60).
 - **WP-CLI path:** optional override for the `wp` executable or `wp-cli.phar`.
+- **PHP CLI binary path override:** the command-line PHP used to run `wp-cli.phar`. Leave empty to auto-detect (the running PHP when it is a CLI binary, otherwise a `php` on `PATH`). Under php-fpm, mod_php or CGI the web server's PHP cannot run a phar, so this matters on hosts without a `wp` executable.
 - **Log retention:** days to keep activity rows (default 30).
 
-On Windows the plugin never launches `wp.bat` or `wp.cmd`. It uses `wp.exe`, a `wp-cli.phar` next to `wp.bat`, or the phar downloaded from the Connect page, run through PHP.
+On Windows the plugin never launches `wp.bat` or `wp.cmd`. It uses `wp.exe`, a `wp-cli.phar` next to `wp.bat`, or the phar downloaded from the Connect page, run through a command-line PHP (`php.exe`).
 
 ## Development
 
@@ -140,7 +141,7 @@ composer lint   # run PHP_CodeSniffer (WordPress standard + PHPCompatibilityWP 7
 composer build  # write dist/techthrill-mcp.zip
 ```
 
-Tests run without WordPress loaded; `tests/bootstrap.php` stubs the WordPress functions the plugin needs. On Windows, 12 tests are skipped (symlink and POSIX-only cases). CI runs the suite on Linux where the symlink and POSIX-only tests execute, on PHP 7.4, 8.1 and 8.3.
+Tests run without WordPress loaded; `tests/bootstrap.php` stubs the WordPress functions the plugin needs. On Windows, 13 tests are skipped (symlink and POSIX-only cases). CI runs the suite on Linux where the symlink and POSIX-only tests execute, on PHP 7.4, 8.1 and 8.3.
 
 `languages/techthrill-mcp.pot` currently holds only the header. Regenerate it with WP-CLI:
 
@@ -154,23 +155,27 @@ wp i18n make-pot . languages/techthrill-mcp.pot --domain=techthrill-mcp
 
 Run this once against a real WordPress site before a release. Nothing here has been verified against a live site during development; the unit tests cover the logic only. Replace `{prefix}` with your table prefix.
 
-1. Copy the plugin folder into `wp-content/plugins/` (or upload the zip) and activate it. Confirm the tables `{prefix}techthrill_mcp_tokens` (id, name, lookup, hash, scopes, user_id, created_at, expires_at, last_used_at, revoked_at) and `{prefix}techthrill_mcp_log` (id, token_id, tool, summary, status, duration_ms, created_at) exist.
-2. Open TechThrill MCP > Connect. The status card shows rows for HTTPS, REST reachable, PHP exec and WP-CLI.
-3. Create a token with each preset (Full access, Read only, Files only). Confirm the one-time token box shows once and is gone after a page reload.
-4. Run the Claude Code command from the Connect tab on your machine, run `/mcp` in Claude Code, and confirm the server shows as connected. Repeat the setup with the Codex snippet and confirm Codex lists the server.
-5. Call `site_info` and confirm every key: site and home URL, WordPress, PHP and MySQL versions, `ABSPATH`, `WP_CONTENT_DIR`, table prefix, multisite flag, active theme, active plugins, locale, timezone, `safe_mode`, `host_capabilities` and the token's scopes.
-6. Call `wp_cli` with `core version`, then with `plugin list --format=json`. On a Windows host that only has `wp.bat`, confirm the batch-file refusal message, click the Connect page's Download WP-CLI button, and retry.
-7. Call `db_query` with `SELECT ID, post_title FROM {prefix}posts`. Call `db_schema` with no table, then with `{prefix}posts`.
-8. Call `db_execute` with an `UPDATE ... WHERE` statement (it works). Call it with `DELETE FROM {prefix}postmeta` without a `WHERE` and confirm safe mode refuses it with the text "Refused by safe mode: DELETE without a WHERE clause would affect every row in ... The site administrator can disable safe mode under TechThrill MCP → Settings if this is intended." Turn safe mode off, repeat the `DELETE` without `confirm_destructive` and confirm it asks for confirmation, then run it with `confirm_destructive: true` against a throwaway table. Turn safe mode back on.
-9. Call `file_list` on `.`, `file_read` on the active theme's `style.css`, `file_search` for a known string with glob `*.css`, then `file_write` a new file under `wp-content/uploads/`, `file_edit` it, and `file_delete` it. Confirm `file_write` to `wp-config.php` and to the plugin's own directory are refused.
-10. Send a request with `Content-Type: application/json` and an invalid JSON body and confirm a 400 with JSON-RPC code `-32700` (not WordPress's `rest_invalid_json`). Send a `GET` to the endpoint and confirm 405 with `Allow: POST`.
-11. In Settings set the rate limit to 5 per minute, exceed it, and confirm a 429 with a `Retry-After` header. Set it back to 120.
-12. Revoke the token on the Tokens tab and confirm Claude Code now gets a 401. Delete the revoked token.
-13. Open the Activity tab and confirm it shows every call above with ok, error and refused badges, and that the token and tool filters work. Confirm Clear log works.
-14. In Settings toggle safe mode off and on, change the rate limit and retention, save, reload, and confirm the values persist (including safe mode unchecked meaning off).
-15. Run `wp cron event run techthrill_mcp_prune_log` (or wait a day) and confirm rows older than the retention period are pruned.
-16. Deactivate and delete the plugin and confirm both tables and both options (`techthrill_mcp_settings`, `techthrill_mcp_db_version`) are gone.
-17. On a Linux host or in CI, confirm the 12 tests skipped on Windows run and pass.
+1. Gate: run the suite on Linux (CI, WSL or Docker) and confirm the 13 tests skipped on Windows run and pass. Do not continue until they do.
+2. Copy the plugin folder into `wp-content/plugins/` (or upload the zip) and activate it. Confirm the tables `{prefix}techthrill_mcp_tokens` (id, name, lookup, hash, scopes, user_id, created_at, expires_at, last_used_at, revoked_at) and `{prefix}techthrill_mcp_log` (id, token_id, tool, summary, status, duration_ms, created_at) exist.
+3. Open TechThrill MCP > Connect. The status card shows rows for HTTPS, REST reachable, PHP exec and WP-CLI. On a non-local site served over plain HTTP, confirm the HTTPS row shows the warning.
+4. Create a token with each preset (Full access, Read only, Files only). Confirm the one-time token box shows once and is gone after a page reload.
+5. Run the Claude Code command from the Connect tab on your machine, run `/mcp` in Claude Code, and confirm the server shows as connected. Repeat the setup with the Codex snippet and confirm Codex lists the server.
+6. Call `site_info` and confirm every key: site and home URL, WordPress, PHP and MySQL versions, `ABSPATH`, `WP_CONTENT_DIR`, table prefix, multisite flag, active theme, active plugins, locale, timezone, `safe_mode`, `host_capabilities` (including `php_binary`) and the token's scopes.
+7. With a Read-only token, call `tools/list` and confirm it shows no `db_execute`, `file_write`, `file_edit`, `file_delete` or `wp_cli`.
+8. Call `wp_cli` with `core version`, then with `plugin list --format=json`. On a Windows host that only has `wp.bat`, confirm the batch-file refusal message, click the Connect page's Download WP-CLI button, and retry.
+9. On a Linux host without `wp` on `PATH` (php-fpm or Apache), click Download WP-CLI, confirm the status card's WP-CLI row shows the phar run via a CLI php (`via /usr/bin/php wp-cli.phar` or similar, not `php-fpm`), then call `wp_cli` with `core version`.
+10. Call `wp_cli` with `eval "1;"` and with `db query "SELECT 1"` and confirm both are refused as always blocked ("Refused: the command ... is not available through TechThrill MCP."). Call it with `db reset --yes` and confirm safe mode refuses it.
+11. Call `db_query` with `SELECT ID, post_title FROM {prefix}posts`. Call `db_schema` with no table, then with `{prefix}posts`.
+12. Call `db_execute` with an `UPDATE ... WHERE` statement (it works). Call it with `DELETE FROM {prefix}postmeta` without a `WHERE` and confirm safe mode refuses it with the text "Refused by safe mode: DELETE without a WHERE clause would affect every row in ... The site administrator can disable safe mode under TechThrill MCP → Settings if this is intended." Turn safe mode off, repeat the `DELETE` without `confirm_destructive` and confirm it asks for confirmation, then run it with `confirm_destructive: true` against a throwaway table. Turn safe mode back on.
+13. Call `file_list` on `.`, `file_read` on the active theme's `style.css`, then `file_edit` that `style.css` to add a comment, read it back, and `file_edit` again to remove the comment. Call `file_search` for a known string with glob `*.css`, then `file_write` a new file under `wp-content/uploads/`, `file_edit` it, and `file_delete` it. Confirm `file_write` to `wp-config.php`, `wp-cli.yml` and the plugin's own directory are refused.
+14. With a Files-only token, call `file_read` on `wp-config.php` and confirm it is refused, and `file_search` for `DB_PASSWORD` and confirm it returns no match from `wp-config.php`.
+15. Send a request with `Content-Type: application/json` and an invalid JSON body and confirm a 400 with JSON-RPC code `-32700` (not WordPress's `rest_invalid_json`). Send a `GET` to the endpoint and confirm 405 with `Allow: POST`.
+16. In Settings set the rate limit to 5 per minute, exceed it, and confirm a 429 with a `Retry-After` header. Set it back to 120.
+17. Revoke the token on the Tokens tab and confirm Claude Code now gets a 401. Delete the revoked token.
+18. Open the Activity tab and confirm it shows every call above with ok, error and refused badges, and that the token and tool filters work. Confirm Clear log works.
+19. In Settings toggle safe mode off and on, change the rate limit and retention, save, reload, and confirm the values persist (including safe mode unchecked meaning off).
+20. Run `wp cron event run techthrill_mcp_prune_log` (or wait a day) and confirm rows older than the retention period are pruned.
+21. Deactivate and delete the plugin and confirm both tables, both options (`techthrill_mcp_settings`, `techthrill_mcp_db_version`) and every `_transient_techthrill_mcp_*` / `_transient_timeout_techthrill_mcp_*` row are gone.
 
 ## Known limitations
 
@@ -178,6 +183,8 @@ Run this once against a real WordPress site before a release. Nothing here has b
 - `file_delete` on a Windows directory junction removes the target; junctions are not detected as links.
 - `wp_cli` on Windows needs `wp.exe` or the phar; `wp.bat` and `wp.cmd` are never launched.
 - WP-CLI output on Windows is buffered to a temp file for the duration of the command.
+- Sites whose `WP_CONTENT_DIR` lives outside `ABSPATH` (Bedrock-style layouts) cannot reach themes or plugins through the file tools, because the path jail is the WordPress root.
+- On multisite, deleting the plugin removes only the current site's tables and options.
 
 ## License
 

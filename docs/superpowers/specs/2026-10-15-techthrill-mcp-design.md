@@ -242,9 +242,11 @@ Behaviour:
    `--path=<ABSPATH>`, `--user=<token user id>`, `--no-color`, `--skip-packages`.
 4. Blocklist (always): `shell`, `db cli`, `db query` (use `db_query` instead),
    `eval`, `eval-file`, `cli update`, `package install`, `package update`.
-   Safe-mode blocklist: `db reset`, `db drop`, `db clean`, `site empty`,
-   `core download`, `core update-db`, `plugin uninstall`, `theme delete`,
-   `user delete`, `post delete --force`, `site delete`. Both lists pass through
+   Safe-mode blocklist: `db reset`, `db drop`, `db clean`, `db import`,
+   `site empty`, `core download`, `core update-db`, `plugin uninstall`,
+   `plugin delete`, `theme delete`, `user delete`, `post delete --force`,
+   `site delete`; safe mode also refuses `db export <file>` (a dump written
+   into the site) unless `--stdout` is given. The safe-mode list passes through
    the `techthrill_mcp_blocked_cli_commands` filter.
 5. Run with `proc_open`, cwd `ABSPATH`, env limited to `PATH`, `HOME`,
    `WP_CLI_DISABLE_AUTO_CHECK_UPDATE=1`, `WP_CLI_CACHE_DIR` under uploads.
@@ -253,8 +255,9 @@ Behaviour:
    each truncated to 200 KB with a `truncated` flag.
 
 `wp` binary resolution order: Settings override → `which wp` /
-`where wp.bat` → `{uploads}/techthrill-mcp/wp-cli.phar` run via the current PHP
-binary (`PHP_BINARY`). The Connect page offers to download the phar from
+`where wp.bat` → `{uploads}/techthrill-mcp/wp-cli.phar` run via a CLI PHP binary
+(PHP_BINARY only when the current SAPI is CLI; otherwise a `php` found on PATH
+or the `php_path` setting). The Connect page offers to download the phar from
 `https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar`
 and verifies its SHA-512 against the published `.sha512` file.
 
@@ -324,6 +327,8 @@ them. Leading `/` or `./` is tolerated and normalised.
 - `wp-config.php`: readable with `files:read` only if the token also has
   `db:read` (it contains DB credentials). Never writable or deletable through
   file tools.
+- `wp-cli.yml`, `wp-cli.local.yml` (site root): never writable or deletable
+  through file tools (they can make WP-CLI load arbitrary PHP).
 - `.htaccess`, `wp-content/uploads/techthrill-mcp/`: writes refused in safe
   mode.
 - The plugin's own directory: writable only with safe mode off, so an agent
