@@ -172,4 +172,29 @@ class DbToolsTest extends TestCase {
 		$this->assertSame( 'Invalid table name.', $result->text() );
 		$this->assertSame( array(), $this->db->queries );
 	}
+
+	public function test_execute_reports_insert_id_only_for_inserts(): void {
+		$this->db->insert_id = 42;
+		$result              = $this->execute()->execute( array( 'sql' => 'UPDATE wp_posts SET post_title = "x" WHERE ID = 1' ), $this->ctx() );
+		$this->assertSame( 0, json_decode( $result->text(), true )['insert_id'] );
+
+		$result = $this->execute()->execute( array( 'sql' => 'INSERT INTO wp_posts (post_title) VALUES ("x")' ), $this->ctx() );
+		$this->assertSame( 42, json_decode( $result->text(), true )['insert_id'] );
+	}
+
+	public function test_execute_failure_without_error_text_has_fallback_message(): void {
+		$this->db->queryResult = false;
+		$result                = $this->execute()->execute( array( 'sql' => 'INSERT INTO wp_nope (a) VALUES (1)' ), $this->ctx() );
+		$this->assertTrue( $result->isError() );
+		$this->assertSame( 'Database error: the query failed.', $result->text() );
+	}
+
+	public function test_schema_rejects_table_name_with_trailing_newline(): void {
+		$schema = new DbSchema( $this->db );
+		$result = $schema->execute( array( 'table' => "wp_posts
+" ), $this->ctx() );
+		$this->assertTrue( $result->isError() );
+		$this->assertSame( 'Invalid table name.', $result->text() );
+		$this->assertSame( array(), $this->db->queries );
+	}
 }

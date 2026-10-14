@@ -91,13 +91,17 @@ final class DbExecute extends AbstractTool {
 
 		$result = $this->db->query( $statement->sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 		if ( false === $result || '' !== (string) $this->db->last_error ) {
-			return $this->fail( 'Database error: ' . $this->db->last_error );
+			$error = '' !== (string) $this->db->last_error ? $this->db->last_error : 'the query failed.';
+			return $this->fail( 'Database error: ' . $error );
 		}
+
+		// wpdb only sets insert_id for INSERT and REPLACE and never resets it, so ignore stale values.
+		$inserts = in_array( $statement->type, array( 'insert', 'replace' ), true );
 
 		return $this->ok(
 			array(
 				'affected_rows' => (int) $this->db->rows_affected,
-				'insert_id'     => (int) $this->db->insert_id,
+				'insert_id'     => $inserts ? (int) $this->db->insert_id : 0,
 			)
 		);
 	}

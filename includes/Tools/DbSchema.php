@@ -67,7 +67,7 @@ final class DbSchema extends AbstractTool {
 			return $this->ok( array( 'tables' => is_array( $rows ) ? $rows : array() ) );
 		}
 
-		if ( 1 !== preg_match( '/^[A-Za-z0-9_]+$/', $table ) ) {
+		if ( 1 !== preg_match( '/^[A-Za-z0-9_]+$/D', $table ) ) {
 			return $this->fail( 'Invalid table name.' );
 		}
 
