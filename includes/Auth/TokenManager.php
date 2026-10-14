@@ -79,6 +79,10 @@ final class TokenManager {
 			)
 		);
 
+		if ( $id <= 0 ) {
+			throw new \RuntimeException( 'Could not store the token.' );
+		}
+
 		return array(
 			'id'    => $id,
 			'token' => $plain,

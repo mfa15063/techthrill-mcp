@@ -44,7 +44,10 @@ final class WpTokenRepository implements TokenRepository {
 	public function insert( array $row ): int {
 		unset( $row['id'] );
 
-		$this->db->insert( $this->table, $row, $this->formats( array_keys( $row ) ) );
+		$inserted = $this->db->insert( $this->table, $row, $this->formats( array_keys( $row ) ) );
+		if ( false === $inserted ) {
+			return 0;
+		}
 
 		return (int) $this->db->insert_id;
 	}

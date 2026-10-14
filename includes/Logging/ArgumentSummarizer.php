@@ -20,7 +20,7 @@ final class ArgumentSummarizer {
 	/**
 	 * Argument names whose values are replaced by their length.
 	 */
-	const MASKED = array( 'content', 'new_string' );
+	const MASKED = array( 'content', 'old_string', 'new_string' );
 
 	/**
 	 * Returns "key=value key=value" for the given arguments.

@@ -148,7 +148,8 @@ final class AuditLog {
 	 * Removes every log row.
 	 */
 	public function clear(): void {
-		$this->db->query( "TRUNCATE TABLE {$this->table}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		// DELETE rather than TRUNCATE: restricted DB users often lack the DROP privilege.
+		$this->db->query( "DELETE FROM {$this->table}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 	}
 
 	/**

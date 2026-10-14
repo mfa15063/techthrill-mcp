@@ -148,4 +148,16 @@ class TokenManagerTest extends TestCase {
 		$this->assertFalse( TokenManager::isWellFormed( 'ttm_' . str_repeat( 'Z', 40 ) . "\n" ) );
 		$this->assertFalse( TokenManager::isWellFormed( 'xxx_' . str_repeat( 'Z', 40 ) ) );
 	}
+
+	public function test_create_throws_when_the_repository_fails_to_store(): void {
+		$repo = new class() extends InMemoryTokenRepository {
+			public function insert( array $row ): int {
+				return 0;
+			}
+		};
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessage( 'Could not store the token.' );
+		$this->manager( $repo )->create( 'Laptop', array( 'db:read' ), 7, null );
+	}
 }

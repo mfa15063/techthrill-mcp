@@ -26,6 +26,13 @@ class ArgumentSummarizerTest extends TestCase {
 		);
 	}
 
+	public function test_masks_old_string(): void {
+		$this->assertSame(
+			'old_string=<11 chars>',
+			ArgumentSummarizer::summarize( array( 'old_string' => 'secret code' ) )
+		);
+	}
+
 	public function test_truncates_long_values_to_80_chars_with_ellipsis(): void {
 		$summary = ArgumentSummarizer::summarize( array( 'sql' => str_repeat( 'a', 200 ) ) );
 
