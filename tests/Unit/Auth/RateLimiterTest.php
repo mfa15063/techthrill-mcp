@@ -58,6 +58,26 @@ class RateLimiterTest extends TestCase {
 		$this->assertSame( 1, $this->limiter( 5 )->retryAfter( 9 ) );
 	}
 
+	public function test_allowed_again_after_waiting_exactly_retry_after(): void {
+		$limiter = $this->limiter( 1 );
+		$limiter->allow( 1 );
+		$this->now += 25;
+		$this->assertFalse( $limiter->allow( 1 ) );
+
+		$this->now += $limiter->retryAfter( 1 );
+		$this->assertTrue( $limiter->allow( 1 ) );
+	}
+
+	public function test_allowed_at_exactly_sixty_seconds(): void {
+		$limiter = $this->limiter( 1 );
+		$limiter->allow( 1 );
+
+		$this->now += 59;
+		$this->assertFalse( $limiter->allow( 1 ) );
+		$this->now += 1;
+		$this->assertTrue( $limiter->allow( 1 ) );
+	}
+
 	public function test_blocked_attempts_are_not_recorded(): void {
 		$store   = new InMemoryRateLimitStore();
 		$limiter = $this->limiter( 1, $store );

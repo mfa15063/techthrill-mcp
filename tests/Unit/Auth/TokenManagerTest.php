@@ -70,6 +70,36 @@ class TokenManagerTest extends TestCase {
 		$this->assertNull( $mgr->verify( 'not-a-token' ) );
 	}
 
+	public function test_empty_expiry_is_normalised_to_null_and_verifies(): void {
+		$repo   = new InMemoryTokenRepository();
+		$mgr    = $this->manager( $repo );
+		$result = $mgr->create( 'Blank', array( 'db:read' ), 1, '  ' );
+
+		$this->assertNull( $repo->find( $result['id'] )['expires_at'] );
+		$this->assertNotNull( $mgr->verify( $result['token'] ) );
+
+		// A legacy row that stored an empty string still verifies.
+		$repo->update( $result['id'], array( 'expires_at' => '' ) );
+		$this->assertNotNull( $mgr->verify( $result['token'] ) );
+	}
+
+	public function test_unparseable_expiry_fails_closed(): void {
+		$repo   = new InMemoryTokenRepository();
+		$mgr    = $this->manager( $repo );
+		$result = $mgr->create( 'Bad', array( 'db:read' ), 1, null );
+		$repo->update( $result['id'], array( 'expires_at' => 'garbage' ) );
+
+		$this->assertNull( $mgr->verify( $result['token'] ) );
+	}
+
+	public function test_expiry_equal_to_now_is_expired(): void {
+		$repo   = new InMemoryTokenRepository();
+		$mgr    = $this->manager( $repo );
+		$result = $mgr->create( 'Edge', array( 'db:read' ), 1, gmdate( 'Y-m-d H:i:s', $this->now ) );
+
+		$this->assertNull( $mgr->verify( $result['token'] ) );
+	}
+
 	public function test_scopes_are_sanitized_and_expanded_on_create(): void {
 		$repo   = new InMemoryTokenRepository();
 		$result = $this->manager( $repo )->create( 'Scoped', array( 'db:write', 'bogus' ), 1, null );

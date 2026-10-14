@@ -111,7 +111,7 @@ final class RateLimiter {
 	private function recent( string $key, int $now ): array {
 		$stamps = array();
 		foreach ( $this->store->get( $key ) as $stamp ) {
-			if ( is_int( $stamp ) && $stamp >= $now - self::WINDOW ) {
+			if ( is_int( $stamp ) && $stamp > $now - self::WINDOW ) {
 				$stamps[] = $stamp;
 			}
 		}

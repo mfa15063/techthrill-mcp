@@ -60,6 +60,11 @@ final class TokenManager {
 	public function create( string $name, array $scopes, int $user_id, ?string $expires_at ): array {
 		$plain = self::PREFIX . self::randomString( self::LENGTH );
 
+		$expires_at = null === $expires_at ? null : trim( $expires_at );
+		if ( '' === $expires_at ) {
+			$expires_at = null;
+		}
+
 		$id = $this->repo->insert(
 			array(
 				'name'         => substr( trim( $name ), 0, 100 ),
@@ -98,7 +103,7 @@ final class TokenManager {
 			if ( null !== $row['revoked_at'] ) {
 				return null;
 			}
-			if ( null !== $row['expires_at'] && strtotime( $row['expires_at'] . ' UTC' ) <= $this->now() ) {
+			if ( $this->isExpired( $row['expires_at'] ) ) {
 				return null;
 			}
 
@@ -159,6 +164,21 @@ final class TokenManager {
 	 */
 	public static function isWellFormed( string $plain ): bool {
 		return 1 === preg_match( '/^ttm_[A-Za-z0-9]{40}$/D', $plain );
+	}
+
+	/**
+	 * Whether an expiry value has passed. Null or empty means no expiry; unparseable values fail closed.
+	 *
+	 * @param string|null $value Expiry as `Y-m-d H:i:s` UTC.
+	 */
+	private function isExpired( ?string $value ): bool {
+		if ( null === $value || '' === $value ) {
+			return false;
+		}
+
+		$time = strtotime( $value . ' UTC' );
+
+		return false === $time || $time <= $this->now();
 	}
 
 	/**
