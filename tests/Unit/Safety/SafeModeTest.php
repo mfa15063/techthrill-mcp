@@ -91,11 +91,55 @@ class SafeModeTest extends TestCase {
 			foreach ( array( 'wp-config.php', 'WP-Config.PHP', '/wp-config.php/', '.\\wp-config.php' ) as $path ) {
 				$r = $mode->checkPathWrite( $path );
 				$this->assertNotNull( $r, $path );
-				$this->assertSame( 'wp-config.php cannot be modified or deleted through TechThrill MCP.', $r->reason() );
+				$this->assertSame( 'Refused: wp-config.php cannot be modified or deleted through TechThrill MCP.', $r->reason() );
 			}
 		}
 		$this->assertNull( $this->on()->checkPathWrite( 'wp-config.php.bak' ) );
 		$this->assertNull( $this->on()->checkPathWrite( 'wp-config-sample.php' ) );
+	}
+
+	public function test_path_wp_cli_config_files_never_writable(): void {
+		foreach ( array( $this->on(), $this->off() ) as $mode ) {
+			foreach ( array( 'wp-cli.yml', 'WP-CLI.YML', './wp-cli.yml' ) as $path ) {
+				$r = $mode->checkPathWrite( $path );
+				$this->assertNotNull( $r, $path );
+				$this->assertSame( 'Refused: wp-cli.yml cannot be modified or deleted through TechThrill MCP.', $r->reason() );
+			}
+			foreach ( array( 'wp-cli.local.yml', '\\wp-cli.local.yml' ) as $path ) {
+				$r = $mode->checkPathWrite( $path );
+				$this->assertNotNull( $r, $path );
+				$this->assertSame( 'Refused: wp-cli.local.yml cannot be modified or deleted through TechThrill MCP.', $r->reason() );
+			}
+		}
+		$this->assertNull( $this->off()->checkPathWrite( 'wp-cli.yml.bak' ) );
+		$this->assertNull( $this->off()->checkPathWrite( 'wp-content/wp-cli.yml' ) );
+	}
+
+	public function test_cli_plugin_delete_and_db_import_blocked_in_safe_mode(): void {
+		$r = $this->on()->checkCli( array( 'plugin', 'delete', 'x' ) );
+		$this->assertNotNull( $r );
+		$this->assertSame(
+			'Refused by safe mode: the command "wp plugin delete" is destructive. The site administrator can disable safe mode under TechThrill MCP → Settings if this is intended.',
+			$r->reason()
+		);
+		$this->assertNull( $this->off()->checkCli( array( 'plugin', 'delete', 'x' ) ) );
+
+		$this->assertStringStartsWith( 'Refused by safe mode: the command "wp db import" is destructive.', $this->on()->checkCli( array( 'db', 'import', 'a.sql' ) )->reason() );
+		$this->assertNull( $this->off()->checkCli( array( 'db', 'import', 'a.sql' ) ) );
+	}
+
+	public function test_cli_db_export_to_file_blocked_in_safe_mode(): void {
+		$r = $this->on()->checkCli( array( 'db', 'export', 'out.sql' ) );
+		$this->assertNotNull( $r );
+		$this->assertSame(
+			'Refused by safe mode: the command "wp db export <file>" writes a file into the site; use --stdout or disable safe mode. The site administrator can disable safe mode under TechThrill MCP → Settings if this is intended.',
+			$r->reason()
+		);
+		$this->assertNotNull( $this->on()->checkCli( array( 'db', 'export', '--add-drop-table', 'out.sql' ) ) );
+		$this->assertNull( $this->off()->checkCli( array( 'db', 'export', 'out.sql' ) ) );
+		$this->assertNull( $this->on()->checkCli( array( 'db', 'export', '--stdout' ) ) );
+		$this->assertNull( $this->on()->checkCli( array( 'db', 'export', '-', '--stdout' ) ) );
+		$this->assertNull( $this->on()->checkCli( array( 'db', 'export' ) ) );
 	}
 
 	public function test_path_htaccess_and_plugin_dir_safe_mode_only(): void {

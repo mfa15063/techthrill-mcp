@@ -45,6 +45,16 @@ final class SqlClassifier {
 	);
 
 	/**
+	 * Top-level keywords that end a WHERE clause.
+	 */
+	private const WHERE_END = array( 'LIMIT', 'ORDER', 'GROUP', 'HAVING' );
+
+	/**
+	 * WHERE clauses that match every row (upper-cased, whitespace removed).
+	 */
+	private const TAUTOLOGIES = array( '1', 'TRUE', '1=1' );
+
+	/**
 	 * Keywords that start the main statement after a WITH (CTE) clause.
 	 */
 	private const WITH_MAIN = array(
@@ -114,7 +124,9 @@ final class SqlClassifier {
 				continue;
 			}
 			if ( 'WHERE' === $token['u'] ) {
-				$has_where = true;
+				if ( ! $this->isTautology( $tokens, $i + 1 ) ) {
+					$has_where = true;
+				}
 			} elseif ( 'LIMIT' === $token['u'] ) {
 				$has_limit = true;
 			}
@@ -296,6 +308,31 @@ final class SqlClassifier {
 	 */
 	private function wordAt( array $tokens, int $index, string $word ): bool {
 		return isset( $tokens[ $index ] ) && self::TYPE_WORD === $tokens[ $index ]['k'] && $word === $tokens[ $index ]['u'];
+	}
+
+	/**
+	 * Whether the WHERE clause starting at an index is exactly 1, TRUE or 1=1, which match every row.
+	 *
+	 * The clause runs to the end of the statement or to a top-level LIMIT, ORDER, GROUP or HAVING.
+	 *
+	 * @param array $tokens Tokens.
+	 * @param int   $index  Index of the first token after WHERE.
+	 */
+	private function isTautology( array $tokens, int $index ): bool {
+		$clause = '';
+		$count  = count( $tokens );
+		for ( $i = $index; $i < $count; $i++ ) {
+			$token = $tokens[ $i ];
+			if ( 0 === $token['d'] && self::TYPE_WORD === $token['k'] && in_array( $token['u'], self::WHERE_END, true ) ) {
+				break;
+			}
+			if ( self::TYPE_WORD !== $token['k'] && self::TYPE_PUNCT !== $token['k'] ) {
+				return false;
+			}
+			$clause .= $token['u'];
+		}
+
+		return in_array( $clause, self::TAUTOLOGIES, true );
 	}
 
 	/**

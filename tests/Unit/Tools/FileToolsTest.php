@@ -208,7 +208,7 @@ class FileToolsTest extends TestCase {
 
 		$denied = $tool->execute( array( 'path' => 'wp-config.php' ), $this->ctx( array( 'files:read' ) ) );
 		$this->assertTrue( $denied->isError() );
-		$this->assertSame( 'Reading wp-config.php requires the db:read scope because it contains database credentials.', $denied->text() );
+		$this->assertSame( 'Refused: reading wp-config.php requires the db:read scope because it contains database credentials.', $denied->text() );
 
 		$upper = $tool->execute( array( 'path' => './WP-CONFIG.PHP' ), $this->ctx( array( 'files:read' ) ) );
 		if ( file_exists( $this->root . '/WP-CONFIG.PHP' ) ) {
@@ -310,7 +310,7 @@ class FileToolsTest extends TestCase {
 
 		$config = ( new FileWrite( $jail, $this->safe( false ) ) )->execute( array( 'path' => 'wp-config.php', 'content' => 'x' ), $this->ctx() );
 		$this->assertTrue( $config->isError() );
-		$this->assertSame( 'wp-config.php cannot be modified or deleted through TechThrill MCP.', $config->text() );
+		$this->assertSame( 'Refused: wp-config.php cannot be modified or deleted through TechThrill MCP.', $config->text() );
 		$this->assertSame( "<?php\n// config\n", file_get_contents( $this->root . '/wp-config.php' ) );
 
 		$safe_tool = new FileWrite( $jail, $this->safe( true ) );
@@ -373,7 +373,7 @@ class FileToolsTest extends TestCase {
 
 		$config = $tool->execute( array( 'path' => 'wp-config.php', 'old_string' => 'config', 'new_string' => 'x' ), $this->ctx() );
 		$this->assertTrue( $config->isError() );
-		$this->assertSame( 'wp-config.php cannot be modified or deleted through TechThrill MCP.', $config->text() );
+		$this->assertSame( 'Refused: wp-config.php cannot be modified or deleted through TechThrill MCP.', $config->text() );
 
 		$missing = $tool->execute( array( 'path' => 'nope.txt', 'old_string' => 'a', 'new_string' => 'b' ), $this->ctx() );
 		$this->assertTrue( $missing->isError() );

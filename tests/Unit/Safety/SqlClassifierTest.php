@@ -241,8 +241,33 @@ class SqlClassifierTest extends TestCase {
 	public function test_escaped_and_doubled_quotes(): void {
 		$s = $this->classify( "UPDATE t SET a='it\\'s; WHERE', b='it''s; WHERE'" );
 		$this->assertFalse( $s->hasWhere );
-		$s = $this->classify( 'UPDATE t SET a="x\\";y" WHERE 1' );
+		$s = $this->classify( 'UPDATE t SET a="x\\";y" WHERE a=1' );
 		$this->assertTrue( $s->hasWhere );
+	}
+
+	public function test_tautological_where_is_not_a_where(): void {
+		$forms = array(
+			'DELETE FROM wp_posts WHERE 1',
+			'DELETE FROM wp_posts WHERE TRUE',
+			'delete from wp_posts where true',
+			'DELETE FROM wp_posts WHERE 1=1',
+			'DELETE FROM wp_posts WHERE 1 = 1',
+			'UPDATE wp_posts SET a=1 WHERE 1 = 1 LIMIT 10',
+			'UPDATE wp_posts SET a=1 WHERE 1 ORDER BY ID',
+			'SELECT a FROM t WHERE TRUE GROUP BY a HAVING COUNT(*) > 1',
+			'DELETE FROM wp_posts WHERE 1;',
+		);
+		foreach ( $forms as $sql ) {
+			$this->assertFalse( $this->classify( $sql )->hasWhere, $sql );
+		}
+	}
+
+	public function test_real_condition_next_to_a_tautology_is_a_where(): void {
+		$this->assertTrue( $this->classify( 'DELETE FROM wp_posts WHERE 1 AND id=5' )->hasWhere );
+		$this->assertTrue( $this->classify( 'DELETE FROM wp_posts WHERE 1=2' )->hasWhere );
+		$this->assertTrue( $this->classify( "DELETE FROM wp_posts WHERE '1'" )->hasWhere );
+		$this->assertTrue( $this->classify( 'DELETE FROM wp_posts WHERE id = 1 LIMIT 1' )->hasWhere );
+		$this->assertTrue( $this->classify( 'DELETE FROM wp_posts WHERE 11' )->hasWhere );
 	}
 
 	public function test_unterminated_quote_terminates(): void {

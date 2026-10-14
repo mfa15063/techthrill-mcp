@@ -97,8 +97,7 @@ class WpCliTest extends TestCase {
 		$runner = new FakeProcessRunner();
 		$result = $this->tool( $runner )->execute( array( 'command' => 'eval "1"' ), $this->ctx() );
 		$this->assertTrue( $result->isError() );
-		$this->assertStringContainsString( 'eval', $result->text() );
-		$this->assertStringContainsString( 'is not available through TechThrill MCP.', $result->text() );
+		$this->assertSame( 'Refused: the command "wp eval" is not available through TechThrill MCP.', $result->text() );
 		$this->assertSame( 0, $runner->calls );
 	}
 

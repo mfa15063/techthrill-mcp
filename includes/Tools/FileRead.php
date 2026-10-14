@@ -73,7 +73,7 @@ final class FileRead extends AbstractFileTool {
 			return $this->fail( $file->relative . ' is not a file.' );
 		}
 		if ( 'wp-config.php' === strtolower( $file->relative ) && ! $ctx->hasScope( 'db:read' ) ) {
-			return $this->fail( 'Reading wp-config.php requires the db:read scope because it contains database credentials.' );
+			return $this->fail( 'Refused: reading wp-config.php requires the db:read scope because it contains database credentials.' );
 		}
 
 		$size = (int) filesize( $file->absolute );

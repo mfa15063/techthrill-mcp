@@ -69,10 +69,21 @@ class DbToolsTest extends TestCase {
 		$this->assertSame( 1, $data['row_count'] );
 	}
 
-	public function test_query_keeps_existing_limit(): void {
+	public function test_query_wraps_existing_limit(): void {
 		$this->db->queueResults( array( array( 'ID' => '1' ) ) );
 		$this->query()->execute( array( 'sql' => 'SELECT * FROM wp_posts LIMIT 5', 'limit' => 100 ), $this->ctx() );
-		$this->assertSame( array( 'SELECT * FROM wp_posts LIMIT 5' ), $this->db->queries );
+		$this->assertSame( array( 'SELECT * FROM (SELECT * FROM wp_posts LIMIT 5) AS ttm_q LIMIT 101' ), $this->db->queries );
+	}
+
+	public function test_query_explicit_limit_above_cap_is_bounded_and_truncated(): void {
+		$this->db->queueResults( array( array( 'ID' => '1' ), array( 'ID' => '2' ), array( 'ID' => '3' ) ) );
+		$result = $this->query()->execute( array( 'sql' => 'SELECT * FROM {prefix}posts LIMIT 5', 'limit' => 2 ), $this->ctx() );
+
+		$this->assertSame( array( 'SELECT * FROM (SELECT * FROM wp_posts LIMIT 5) AS ttm_q LIMIT 3' ), $this->db->queries );
+		$data = json_decode( $result->text(), true );
+		$this->assertSame( 2, $data['row_count'] );
+		$this->assertCount( 2, $data['rows'] );
+		$this->assertTrue( $data['truncated'] );
 	}
 
 	public function test_query_runs_classifier_output_not_raw_sql(): void {

@@ -51,7 +51,7 @@ final class AuditLog {
 		}
 
 		$text = $result->text();
-		if ( 0 === strpos( $text, 'Refused by safe mode:' ) || 0 === strpos( $text, 'Confirmation required:' ) ) {
+		if ( 0 === strpos( $text, 'Refused' ) || 0 === strpos( $text, 'Confirmation required:' ) ) {
 			return 'refused';
 		}
 

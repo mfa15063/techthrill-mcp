@@ -84,8 +84,11 @@ final class DbQuery extends AbstractTool {
 		}
 
 		$run = $statement->sql;
-		if ( 'select' === $statement->type && ! $statement->hasLimit ) {
-			$run .= ' LIMIT ' . ( $limit + 1 );
+		if ( 'select' === $statement->type ) {
+			// An explicit LIMIT may exceed the cap, so the statement is wrapped to bound what is fetched into memory.
+			$run = $statement->hasLimit
+				? 'SELECT * FROM (' . $statement->sql . ') AS ttm_q LIMIT ' . ( $limit + 1 )
+				: $statement->sql . ' LIMIT ' . ( $limit + 1 );
 		}
 
 		$rows = $this->db->get_results( $run, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared

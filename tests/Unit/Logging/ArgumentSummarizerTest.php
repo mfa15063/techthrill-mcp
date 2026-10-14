@@ -78,6 +78,12 @@ class ArgumentSummarizerTest extends TestCase {
 		$this->assertSame( 'refused', AuditLog::statusFor( ToolResult::error( 'Confirmation required: pass confirm=true' ) ) );
 	}
 
+	public function test_status_refused_for_always_on_refusals(): void {
+		$this->assertSame( 'refused', AuditLog::statusFor( ToolResult::error( 'Refused: wp-config.php cannot be modified or deleted through TechThrill MCP.' ) ) );
+		$this->assertSame( 'refused', AuditLog::statusFor( ToolResult::error( 'Refused: the command "wp eval" is not available through TechThrill MCP.' ) ) );
+		$this->assertSame( 'refused', AuditLog::statusFor( ToolResult::error( 'Refused: reading wp-config.php requires the db:read scope because it contains database credentials.' ) ) );
+	}
+
 	public function test_status_error_for_other_errors(): void {
 		$this->assertSame( 'error', AuditLog::statusFor( ToolResult::error( 'File not found' ) ) );
 		// A success whose text happens to start with the prefix is still ok.

@@ -14,8 +14,8 @@ defined( 'ABSPATH' ) || exit;
  *
  * Every check returns null when the action is allowed, or a Refusal whose
  * reason is shown to the agent. Safe-mode refusals start with
- * "Refused by safe mode: " and confirmation refusals start with
- * "Confirmation required: ".
+ * "Refused by safe mode: ", refusals that apply in every mode start with
+ * "Refused: " and confirmation refusals start with "Confirmation required: ".
  */
 final class SafeMode {
 
@@ -28,10 +28,12 @@ final class SafeMode {
 		'db reset',
 		'db drop',
 		'db clean',
+		'db import',
 		'site empty',
 		'core download',
 		'core update-db',
 		'plugin uninstall',
+		'plugin delete',
 		'theme delete',
 		'user delete',
 		'post delete --force',
@@ -43,7 +45,7 @@ final class SafeMode {
 	 *
 	 * @var string[]
 	 */
-	const PROTECTED_NEVER_WRITE = array( 'wp-config.php' );
+	const PROTECTED_NEVER_WRITE = array( 'wp-config.php', 'wp-cli.yml', 'wp-cli.local.yml' );
 
 	/**
 	 * Paths that cannot be written while safe mode is on (the plugin directory is added at runtime).
@@ -156,10 +158,31 @@ final class SafeMode {
 		$list = array_values( array_filter( is_array( $list ) ? $list : self::SAFE_MODE_BLOCKED_CLI, 'is_string' ) );
 
 		$entry = $this->parser->firstBlocked( $argv, $list );
-		if ( null === $entry ) {
+		if ( null !== $entry ) {
+			return new Refusal( 'Refused by safe mode: the command "wp ' . $entry . '" is destructive.' . self::SAFE_MODE_HINT );
+		}
+
+		return $this->checkDbExportFile( $argv );
+	}
+
+	/**
+	 * Refuses `wp db export <file>`, which writes a dump into the site, unless --stdout is given.
+	 *
+	 * @param string[] $argv Parsed arguments.
+	 */
+	private function checkDbExportFile( array $argv ): ?Refusal {
+		$positional = array();
+		foreach ( $argv as $token ) {
+			if ( 0 !== strpos( $token, '-' ) ) {
+				$positional[] = $token;
+			}
+		}
+
+		if ( count( $positional ) < 3 || 'db' !== $positional[0] || 'export' !== $positional[1] || in_array( '--stdout', $argv, true ) ) {
 			return null;
 		}
-		return new Refusal( 'Refused by safe mode: the command "wp ' . $entry . '" is destructive.' . self::SAFE_MODE_HINT );
+
+		return new Refusal( 'Refused by safe mode: the command "wp db export <file>" writes a file into the site; use --stdout or disable safe mode.' . self::SAFE_MODE_HINT );
 	}
 
 	/**
@@ -172,7 +195,7 @@ final class SafeMode {
 
 		foreach ( self::PROTECTED_NEVER_WRITE as $entry ) {
 			if ( $this->matches( $path, $entry ) ) {
-				return new Refusal( 'wp-config.php cannot be modified or deleted through TechThrill MCP.' );
+				return new Refusal( 'Refused: ' . $entry . ' cannot be modified or deleted through TechThrill MCP.' );
 			}
 		}
 

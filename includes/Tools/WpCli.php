@@ -109,7 +109,7 @@ final class WpCli extends AbstractTool {
 
 			$entry = $this->parser->firstBlocked( $argv, CommandParser::ALWAYS_BLOCKED );
 			if ( null !== $entry ) {
-				return $this->fail( 'The command "' . $entry . '" is not available through TechThrill MCP.' );
+				return $this->fail( 'Refused: the command "wp ' . $entry . '" is not available through TechThrill MCP.' );
 			}
 
 			$refusal = $this->safe_mode->checkCli( $argv );
