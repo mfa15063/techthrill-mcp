@@ -48,7 +48,8 @@ final class Menu {
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue' ) );
 		add_action( 'admin_init', array( $this->settings, 'register' ) );
 
-		add_action( 'admin_post_techthrill_mcp_create_token', array( $this->connect, 'handleCreate' ) );
+		// The create form posts to the plugin page itself so the new token is rendered once, never stored.
+		add_action( 'load-' . self::HOOK_SUFFIX, array( $this->connect, 'maybeHandleCreate' ) );
 		add_action( 'admin_post_techthrill_mcp_install_phar', array( $this->connect, 'handleInstallPhar' ) );
 		add_action( 'admin_post_techthrill_mcp_revoke_token', array( $this->tokens, 'handleRevoke' ) );
 		add_action( 'admin_post_techthrill_mcp_delete_token', array( $this->tokens, 'handleDelete' ) );

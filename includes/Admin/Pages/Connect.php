@@ -27,6 +27,13 @@ final class Connect {
 	private PharInstaller $installer;
 
 	/**
+	 * The connection created in this request, shown once and never stored.
+	 *
+	 * @var array{token:string,id:int,name:string}|null
+	 */
+	private ?array $created = null;
+
+	/**
 	 * @param Plugin        $plugin    Plugin instance.
 	 * @param PharInstaller $installer WP-CLI phar installer.
 	 */
@@ -45,7 +52,22 @@ final class Connect {
 	}
 
 	/**
-	 * Admin-post handler: creates a token.
+	 * Hooked to the plugin page's load action: handles the create-connection form when it was posted.
+	 *
+	 * The form posts to the plugin page itself (not admin-post.php) so the new token is rendered
+	 * in this response and never written to a transient or option.
+	 */
+	public function maybeHandleCreate(): void {
+		if ( ! isset( $_POST['ttm_action'] ) || 'create_token' !== sanitize_key( wp_unslash( $_POST['ttm_action'] ) ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Routing only; handleCreate() verifies the nonce.
+			return;
+		}
+
+		$this->handleCreate();
+	}
+
+	/**
+	 * Creates a token. On success the token is kept in memory for this request's render; on failure
+	 * a notice is stored and the browser is redirected back to the tab.
 	 */
 	public function handleCreate(): void {
 		Flash::guard( 'techthrill_mcp_create_token' );
@@ -80,16 +102,11 @@ final class Connect {
 			Flash::redirect( 'connect' );
 		}
 
-		set_transient(
-			$this->newTokenKey(),
-			array(
-				'token' => $created['token'],
-				'id'    => $created['id'],
-				'name'  => $name,
-			),
-			60
+		$this->created = array(
+			'token' => (string) $created['token'],
+			'id'    => (int) $created['id'],
+			'name'  => $name,
 		);
-		Flash::redirect( 'connect' );
 	}
 
 	/**
@@ -141,10 +158,6 @@ final class Connect {
 		return $parsed->format( 'Y-m-d H:i:s' );
 	}
 
-	private function newTokenKey(): string {
-		return 'techthrill_mcp_new_token_' . get_current_user_id();
-	}
-
 	private function renderStatusCard(): void {
 		$host   = $this->plugin->hostCapabilities();
 		$rows   = array();
@@ -170,7 +183,12 @@ final class Connect {
 
 		$binary = $host->wpBinary();
 		if ( null !== $binary ) {
-			$rows[] = array( __( 'WP-CLI', 'techthrill-mcp' ), 'ok', implode( ' ', $binary ), '' );
+			$is_phar = 2 === count( $binary ) && '.phar' === strtolower( substr( $binary[1], -5 ) );
+			/* translators: 1: command-line PHP binary, 2: phar file name */
+			$text   = $is_phar ? sprintf( __( 'via %1$s %2$s', 'techthrill-mcp' ), $binary[0], basename( $binary[1] ) ) : implode( ' ', $binary );
+			$rows[] = array( __( 'WP-CLI', 'techthrill-mcp' ), 'ok', $text, '' );
+		} elseif ( '' !== $host->pharPath() && is_file( $host->pharPath() ) && null === $host->phpBinary() ) {
+			$rows[] = array( __( 'WP-CLI', 'techthrill-mcp' ), 'warning', __( 'wp-cli.phar is installed but no command-line PHP was found to run it. Set the PHP CLI binary path under Settings.', 'techthrill-mcp' ), '' );
 		} elseif ( $exec ) {
 			$rows[] = array( __( 'WP-CLI', 'techthrill-mcp' ), 'warning', __( 'Not found.', 'techthrill-mcp' ), 'download' );
 		} else {
@@ -238,17 +256,14 @@ final class Connect {
 	}
 
 	private function renderNewToken(): void {
-		$new = get_transient( $this->newTokenKey() );
-		if ( false === $new ) {
-			return;
-		}
-		delete_transient( $this->newTokenKey() );
-		if ( ! is_array( $new ) || empty( $new['token'] ) ) {
+		$new           = $this->created;
+		$this->created = null;
+		if ( null === $new || '' === $new['token'] ) {
 			return;
 		}
 
-		$token = (string) $new['token'];
-		$slug  = Snippets::slug( (string) get_bloginfo( 'name' ) );
+		$token = $new['token'];
+		$slug  = Snippets::slug( html_entity_decode( (string) get_bloginfo( 'name' ), ENT_QUOTES, 'UTF-8' ) );
 		$url   = $this->plugin->endpointUrl();
 		$tabs  = array(
 			'claude' => array( __( 'Claude Code', 'techthrill-mcp' ), Snippets::claudeCode( $slug, $url, $token ) ),
@@ -258,7 +273,7 @@ final class Connect {
 
 		echo '<div class="ttm-card ttm-token-box">';
 		/* translators: %s: connection name */
-		echo '<h2>' . esc_html( sprintf( __( 'Connection created: %s', 'techthrill-mcp' ), (string) ( $new['name'] ?? '' ) ) ) . '</h2>';
+		echo '<h2>' . esc_html( sprintf( __( 'Connection created: %s', 'techthrill-mcp' ), $new['name'] ) ) . '</h2>';
 		echo '<p><strong>' . esc_html__( 'Copy this token now. It is shown only once and cannot be recovered.', 'techthrill-mcp' ) . '</strong></p>';
 		echo '<p class="ttm-copy-row"><code id="ttm-token" class="ttm-token">' . esc_html( $token ) . '</code> ';
 		$this->copyButton( 'ttm-token' );
@@ -297,8 +312,8 @@ final class Connect {
 		);
 
 		echo '<div class="ttm-card"><h2>' . esc_html__( 'Create a connection', 'techthrill-mcp' ) . '</h2>';
-		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" class="ttm-create-form">';
-		echo '<input type="hidden" name="action" value="techthrill_mcp_create_token" />';
+		echo '<form method="post" action="' . esc_url( Flash::tabUrl( 'connect' ) ) . '" class="ttm-create-form">';
+		echo '<input type="hidden" name="ttm_action" value="create_token" />';
 		wp_nonce_field( 'techthrill_mcp_create_token' );
 		echo '<table class="form-table" role="presentation"><tbody>';
 
