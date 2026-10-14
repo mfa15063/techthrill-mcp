@@ -58,6 +58,7 @@ class HostCapabilitiesTest extends TestCase {
 		$dir = $this->tempDir();
 		$cli = $dir . '/custom-wp';
 		file_put_contents( $cli, '' );
+		chmod( $cli, 0755 );
 		$bin = $dir . '/bin';
 		mkdir( $bin );
 		file_put_contents( $bin . '/wp', '' );
@@ -80,6 +81,56 @@ class HostCapabilitiesTest extends TestCase {
 		$path = $dir . '/empty' . PATH_SEPARATOR . $bin;
 		$host = $this->host( array(), $dir, $path );
 		$this->assertSame( array( $bin . '/' . $name ), $host->wpBinary() );
+	}
+
+	public function test_windows_prefers_launchable_extension_over_bare_script(): void {
+		if ( DIRECTORY_SEPARATOR !== '\\' ) {
+			$this->markTestSkipped( 'Windows PATH resolution only.' );
+		}
+		$dir = $this->tempDir();
+		$bin = $dir . '/bin';
+		mkdir( $bin );
+		file_put_contents( $bin . '/wp', '' );
+		file_put_contents( $bin . '/wp.bat', '' );
+
+		$this->assertSame( array( $bin . '/wp.bat' ), $this->host( array(), $dir, $bin )->wpBinary() );
+
+		// A bare script alone is not launchable on Windows.
+		unlink( $bin . '/wp.bat' );
+		$this->assertNull( $this->host( array(), $dir, $bin )->wpBinary() );
+	}
+
+	public function test_non_executable_cli_path_falls_through_on_posix(): void {
+		if ( DIRECTORY_SEPARATOR === '\\' ) {
+			$this->markTestSkipped( 'Executable bit is POSIX only.' );
+		}
+		$dir = $this->tempDir();
+		$bin = $dir . '/bin';
+		mkdir( $bin );
+		file_put_contents( $bin . '/wp', '' );
+		chmod( $bin . '/wp', 0755 );
+		$data = $dir . '/data.txt';
+		file_put_contents( $data, '' );
+		chmod( $data, 0644 );
+
+		$this->assertSame( array( $bin . '/wp' ), $this->host( array( 'cli_path' => $data ), $dir, $bin )->wpBinary() );
+	}
+
+	public function test_directory_cli_path_falls_through(): void {
+		$dir = $this->tempDir();
+		$bin = $dir . '/bin';
+		mkdir( $bin );
+		$name = DIRECTORY_SEPARATOR === '\\' ? 'wp.bat' : 'wp';
+		file_put_contents( $bin . '/' . $name, '' );
+		chmod( $bin . '/' . $name, 0755 );
+
+		$this->assertSame( array( $bin . '/' . $name ), $this->host( array( 'cli_path' => $dir ), $dir, $bin )->wpBinary() );
+	}
+
+	public function test_empty_uploads_dir_disables_phar(): void {
+		$host = $this->host( array(), '', $this->tempDir() );
+		$this->assertSame( '', $host->pharPath() );
+		$this->assertNull( $host->wpBinary() );
 	}
 
 	public function test_phar_fallback(): void {

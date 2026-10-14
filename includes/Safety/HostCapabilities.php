@@ -19,9 +19,9 @@ defined( 'ABSPATH' ) || exit;
 final class HostCapabilities {
 
 	/**
-	 * Names tried for the WP-CLI executable on Windows.
+	 * Launchable WP-CLI names on Windows, in order (a bare `wp` script cannot be run there).
 	 */
-	const WINDOWS_NAMES = array( 'wp', 'wp.bat', 'wp.cmd' );
+	const WINDOWS_NAMES = array( 'wp.bat', 'wp.cmd', 'wp.exe' );
 
 	private Settings $settings;
 
@@ -81,7 +81,7 @@ final class HostCapabilities {
 	 */
 	public function wpBinary(): ?array {
 		$configured = (string) $this->settings->get( 'cli_path' );
-		if ( '' !== $configured && is_file( $configured ) ) {
+		if ( '' !== $configured && is_file( $configured ) && ( '\\' === DIRECTORY_SEPARATOR || is_executable( $configured ) ) ) {
 			return array( $configured );
 		}
 
@@ -90,7 +90,7 @@ final class HostCapabilities {
 			return array( $found );
 		}
 
-		if ( is_file( $this->pharPath() ) ) {
+		if ( '' !== $this->pharPath() && is_file( $this->pharPath() ) ) {
 			return array( PHP_BINARY, $this->pharPath() );
 		}
 
@@ -101,6 +101,10 @@ final class HostCapabilities {
 	 * Location of the downloaded WP-CLI phar.
 	 */
 	public function pharPath(): string {
+		if ( '' === $this->uploads_dir ) {
+			return '';
+		}
+
 		return rtrim( $this->uploads_dir, '/\\' ) . '/techthrill-mcp/wp-cli.phar';
 	}
 

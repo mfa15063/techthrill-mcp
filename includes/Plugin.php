@@ -96,7 +96,7 @@ final class Plugin {
 		$this->settings  = new Settings();
 		$this->path_jail = new PathJail( ABSPATH );
 
-		$uploads                 = wp_upload_dir();
+		$uploads                 = wp_upload_dir( null, false );
 		$this->host_capabilities = new HostCapabilities( $this->settings, (string) ( $uploads['basedir'] ?? '' ) );
 
 		$plugin_relative_dir = trim( str_replace( wp_normalize_path( ABSPATH ), '', wp_normalize_path( TECHTHRILL_MCP_DIR ) ), '/' );
