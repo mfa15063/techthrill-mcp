@@ -20,6 +20,10 @@ use TechThrill\MCP\Mcp\Server;
 use TechThrill\MCP\Safety\HostCapabilities;
 use TechThrill\MCP\Safety\PathJail;
 use TechThrill\MCP\Safety\SafeMode;
+use TechThrill\MCP\Safety\SqlClassifier;
+use TechThrill\MCP\Tools\DbExecute;
+use TechThrill\MCP\Tools\DbQuery;
+use TechThrill\MCP\Tools\DbSchema;
 use TechThrill\MCP\Tools\SiteInfo;
 use TechThrill\MCP\Tools\ToolRegistry;
 use TechThrill\MCP\Tools\ToolResult;
@@ -114,6 +118,10 @@ final class Plugin {
 
 		$registry = new ToolRegistry();
 		$registry->register( new SiteInfo( $this->host_capabilities, $this->safe_mode ) );
+		$classifier = new SqlClassifier();
+		$registry->register( new DbQuery( $wpdb, $classifier ) );
+		$registry->register( new DbExecute( $wpdb, $classifier, $this->safe_mode ) );
+		$registry->register( new DbSchema( $wpdb ) );
 		$filtered = apply_filters( 'techthrill_mcp_tools', $registry );
 		if ( $filtered instanceof ToolRegistry ) {
 			$registry = $filtered;
