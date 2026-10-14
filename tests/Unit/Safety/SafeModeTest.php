@@ -128,18 +128,35 @@ class SafeModeTest extends TestCase {
 		$this->assertNull( $this->off()->checkCli( array( 'db', 'import', 'a.sql' ) ) );
 	}
 
-	public function test_cli_db_export_to_file_blocked_in_safe_mode(): void {
-		$r = $this->on()->checkCli( array( 'db', 'export', 'out.sql' ) );
-		$this->assertNotNull( $r );
-		$this->assertSame(
-			'Refused by safe mode: the command "wp db export <file>" writes a file into the site; use --stdout or disable safe mode. The site administrator can disable safe mode under TechThrill MCP → Settings if this is intended.',
-			$r->reason()
+	public function test_cli_db_export_only_to_stdout_in_safe_mode(): void {
+		$expected = 'Refused by safe mode: "wp db export" writes a database dump into the site unless the output file is "-" (standard output). Use "wp db export -" or disable safe mode. The site administrator can disable safe mode under TechThrill MCP → Settings if this is intended.';
+
+		$refused = array(
+			array( 'db', 'export' ),
+			array( 'db', 'export', 'out.sql' ),
+			array( 'db', 'export', '--porcelain', 'out.sql' ),
+			array( 'db', 'export', '-', '--result-file=x.sql' ),
+			array( 'db', 'export', '-', '--result-file', 'x.sql' ),
+			array( 'db', 'export', '-', '--tab=/tmp' ),
+			array( 'db', 'export', '-', '--tab', '/tmp' ),
+			array( 'db', 'export', 'out.sql', '-' ),
 		);
-		$this->assertNotNull( $this->on()->checkCli( array( 'db', 'export', '--add-drop-table', 'out.sql' ) ) );
-		$this->assertNull( $this->off()->checkCli( array( 'db', 'export', 'out.sql' ) ) );
-		$this->assertNull( $this->on()->checkCli( array( 'db', 'export', '--stdout' ) ) );
-		$this->assertNull( $this->on()->checkCli( array( 'db', 'export', '-', '--stdout' ) ) );
-		$this->assertNull( $this->on()->checkCli( array( 'db', 'export' ) ) );
+		foreach ( $refused as $argv ) {
+			$r = $this->on()->checkCli( $argv );
+			$this->assertNotNull( $r, implode( ' ', $argv ) );
+			$this->assertSame( $expected, $r->reason() );
+			$this->assertNull( $this->off()->checkCli( $argv ), implode( ' ', $argv ) );
+		}
+
+		$allowed = array(
+			array( 'db', 'export', '-' ),
+			array( 'db', 'export', '-', '--tables=wp_posts' ),
+			array( 'db', 'export', '--add-drop-table', '-' ),
+		);
+		foreach ( $allowed as $argv ) {
+			$this->assertNull( $this->on()->checkCli( $argv ), implode( ' ', $argv ) );
+			$this->assertNull( $this->off()->checkCli( $argv ), implode( ' ', $argv ) );
+		}
 	}
 
 	public function test_path_htaccess_and_plugin_dir_safe_mode_only(): void {

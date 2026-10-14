@@ -245,8 +245,10 @@ Behaviour:
    Safe-mode blocklist: `db reset`, `db drop`, `db clean`, `db import`,
    `site empty`, `core download`, `core update-db`, `plugin uninstall`,
    `plugin delete`, `theme delete`, `user delete`, `post delete --force`,
-   `site delete`; safe mode also refuses `db export <file>` (a dump written
-   into the site) unless `--stdout` is given. The safe-mode list passes through
+   `site delete`; safe mode also refuses every `db export` (a dump written
+   into the site, ABSPATH when no file is given) unless the first file
+   argument is `-` (standard output) and neither `--result-file` nor `--tab`
+   is present. The safe-mode list passes through
    the `techthrill_mcp_blocked_cli_commands` filter.
 5. Run with `proc_open`, cwd `ABSPATH`, env limited to `PATH`, `HOME`,
    `WP_CLI_DISABLE_AUTO_CHECK_UPDATE=1`, `WP_CLI_CACHE_DIR` under uploads.

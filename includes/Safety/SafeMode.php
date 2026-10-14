@@ -166,23 +166,38 @@ final class SafeMode {
 	}
 
 	/**
-	 * Refuses `wp db export <file>`, which writes a dump into the site, unless --stdout is given.
+	 * Refuses every `wp db export` form that writes a dump into the site.
+	 *
+	 * WP-CLI writes to standard output only when the file argument is `-`; with no file argument it
+	 * writes {DB_NAME}-{date}-{hex}.sql into the working directory (ABSPATH), and unknown flags such
+	 * as --result-file or --tab are passed to mysqldump, which then writes files itself.
 	 *
 	 * @param string[] $argv Parsed arguments.
 	 */
 	private function checkDbExportFile( array $argv ): ?Refusal {
 		$positional = array();
 		foreach ( $argv as $token ) {
-			if ( 0 !== strpos( $token, '-' ) ) {
+			// A lone "-" is the file argument (standard output), not a flag.
+			if ( '-' === $token || 0 !== strpos( $token, '-' ) ) {
 				$positional[] = $token;
 			}
 		}
 
-		if ( count( $positional ) < 3 || 'db' !== $positional[0] || 'export' !== $positional[1] || in_array( '--stdout', $argv, true ) ) {
+		if ( count( $positional ) < 2 || 'db' !== $positional[0] || 'export' !== $positional[1] ) {
 			return null;
 		}
 
-		return new Refusal( 'Refused by safe mode: the command "wp db export <file>" writes a file into the site; use --stdout or disable safe mode.' . self::SAFE_MODE_HINT );
+		$to_stdout = isset( $positional[2] ) && '-' === $positional[2];
+		foreach ( $argv as $token ) {
+			if ( 0 === strpos( $token, '--result-file' ) || '--tab' === $token || 0 === strpos( $token, '--tab=' ) ) {
+				$to_stdout = false;
+			}
+		}
+		if ( $to_stdout ) {
+			return null;
+		}
+
+		return new Refusal( 'Refused by safe mode: "wp db export" writes a database dump into the site unless the output file is "-" (standard output). Use "wp db export -" or disable safe mode.' . self::SAFE_MODE_HINT );
 	}
 
 	/**

@@ -212,12 +212,13 @@ class HostCapabilities {
 	 *
 	 * Order: the php_path setting; PHP_BINARY when the current SAPI is a CLI one (under php-fpm,
 	 * mod_php or CGI it is not a CLI binary); a php binary on PATH; the php next to PHP_BINDIR.
+	 * On Windows only an .exe is accepted for php_path, so a batch file is never launched.
 	 */
 	private function phpCli(): ?string {
 		$windows = '\\' === DIRECTORY_SEPARATOR;
 
 		$configured = (string) $this->settings->get( 'php_path' );
-		if ( '' !== $configured && is_file( $configured ) && ( $windows || is_executable( $configured ) ) ) {
+		if ( '' !== $configured && is_file( $configured ) && $this->launchable( $configured ) ) {
 			return $configured;
 		}
 
@@ -234,12 +235,25 @@ class HostCapabilities {
 		$bindir = null !== $this->php_bindir ? $this->php_bindir : PHP_BINDIR;
 		if ( '' !== $bindir ) {
 			$candidate = rtrim( $bindir, '/\\' ) . ( $windows ? '/php.exe' : '/php' );
-			if ( is_file( $candidate ) ) {
+			if ( is_file( $candidate ) && ( $windows || is_executable( $candidate ) ) ) {
 				return $candidate;
 			}
 		}
 
 		return null;
+	}
+
+	/**
+	 * Whether a configured binary may be launched directly: an .exe on Windows, executable on POSIX.
+	 *
+	 * @param string $file Existing file path.
+	 */
+	private function launchable( string $file ): bool {
+		if ( '\\' === DIRECTORY_SEPARATOR ) {
+			return 'exe' === strtolower( pathinfo( $file, PATHINFO_EXTENSION ) );
+		}
+
+		return is_executable( $file );
 	}
 
 	/**

@@ -264,6 +264,37 @@ class HostCapabilitiesTest extends TestCase {
 		$this->assertSame( array( $php, $uploads . '/techthrill-mcp/wp-cli.phar' ), $host->wpBinary() );
 	}
 
+	public function test_windows_batch_php_path_falls_through(): void {
+		$this->skipUnlessWindows();
+		$uploads = $this->uploadsWithPhar();
+		$dir     = $this->tempDir();
+		file_put_contents( $dir . '/php.bat', '' );
+		file_put_contents( $dir . '/php.CMD', '' );
+		$bin = $this->tempDir();
+		$php = $this->executable( $bin . '/php.exe' );
+
+		foreach ( array( $dir . '/php.bat', $dir . '/php.CMD' ) as $configured ) {
+			$host = $this->host( array( 'php_path' => $configured ), $uploads, $bin, '', 'example.com', false, 'cgi-fcgi', $this->tempDir() );
+			$this->assertSame( $php, $host->phpBinary(), $configured );
+		}
+
+		file_put_contents( $dir . '/PHP.EXE', '' );
+		$host = $this->host( array( 'php_path' => $dir . '/PHP.EXE' ), $uploads, $bin, '', 'example.com', false, 'cgi-fcgi', $this->tempDir() );
+		$this->assertSame( $dir . '/PHP.EXE', $host->phpBinary() );
+	}
+
+	public function test_non_executable_php_bindir_is_ignored_on_posix(): void {
+		if ( DIRECTORY_SEPARATOR === '\\' ) {
+			$this->markTestSkipped( 'Executable bit is POSIX only.' );
+		}
+		$bindir = $this->tempDir();
+		file_put_contents( $bindir . '/php', '' );
+		chmod( $bindir . '/php', 0644 );
+
+		$host = $this->host( array(), $this->uploadsWithPhar(), $this->tempDir(), '', 'example.com', false, 'cgi-fcgi', $bindir );
+		$this->assertNull( $host->phpBinary() );
+	}
+
 	public function test_unusable_php_path_setting_is_ignored(): void {
 		$uploads = $this->uploadsWithPhar();
 		$empty   = $this->tempDir();

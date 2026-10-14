@@ -26,7 +26,7 @@ The endpoint is `POST /wp-json/techthrill-mcp/v1/mcp` with an `Authorization: Be
 = Safety in plain words =
 
 * No token, no access. A fresh install exposes nothing.
-* Safe mode is on by default. It refuses DELETE or UPDATE without a WHERE clause, destructive WP-CLI commands (including `db import`, `plugin delete` and `db export` to a file), deleting directories, and writes to protected paths.
+* Safe mode is on by default. It refuses DELETE or UPDATE without a WHERE clause, destructive WP-CLI commands (including `db import`, `plugin delete` and any `db export` except `db export -` to standard output), deleting directories, and writes to protected paths.
 * File tools are jailed to the WordPress root, and `wp-config.php`, `wp-cli.yml` and `wp-cli.local.yml` can never be modified through them.
 * Every tool call is written to an activity log you can read and clear.
 * Requests are rate limited per token.

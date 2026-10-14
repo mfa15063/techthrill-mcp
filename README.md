@@ -74,7 +74,7 @@ bearer_token_env_var = "TECHTHRILL_MCP_<SLUG>_TOKEN"
 
 ## Safety
 
-- **Safe mode** is on by default. While it is on, the plugin refuses: `DELETE` and `UPDATE` without a `WHERE` clause; `DROP` and `TRUNCATE`; the WP-CLI commands `db reset`, `db drop`, `db clean`, `db import`, `site empty`, `core download`, `core update-db`, `plugin uninstall`, `plugin delete`, `theme delete`, `user delete`, `post delete --force` and `site delete`; `db export` to a file (use `db export --stdout` instead); deleting directories; and writes to protected paths. With safe mode off, destructive SQL still needs `confirm_destructive: true`.
+- **Safe mode** is on by default. While it is on, the plugin refuses: `DELETE` and `UPDATE` without a `WHERE` clause; `DROP` and `TRUNCATE`; the WP-CLI commands `db reset`, `db drop`, `db clean`, `db import`, `site empty`, `core download`, `core update-db`, `plugin uninstall`, `plugin delete`, `theme delete`, `user delete`, `post delete --force` and `site delete`; any `db export` that writes a dump file (only `db export -`, which writes to standard output, is allowed, and not with `--result-file` or `--tab`); deleting directories; and writes to protected paths. With safe mode off, destructive SQL still needs `confirm_destructive: true`.
 - **Protected paths:** `wp-config.php`, `wp-cli.yml` and `wp-cli.local.yml` can never be written or deleted through the file tools (`wp-config.php` is readable only by a token that also has `db:read`). `.htaccess`, `wp-content/uploads/techthrill-mcp/` and the plugin's own directory are not writable while safe mode is on.
 - **Scopes:** `wp-cli`, `db:read`, `db:write`, `files:read`, `files:write`. Presets on the Connect tab: Full access, Read only, Files only.
 - **Token binding:** tokens are stored only as SHA-256 hashes and shown once. They can expire, be revoked, and are rate limited per token. A token acts as the administrator who created it.
@@ -141,7 +141,7 @@ composer lint   # run PHP_CodeSniffer (WordPress standard + PHPCompatibilityWP 7
 composer build  # write dist/techthrill-mcp.zip
 ```
 
-Tests run without WordPress loaded; `tests/bootstrap.php` stubs the WordPress functions the plugin needs. On Windows, 13 tests are skipped (symlink and POSIX-only cases). CI runs the suite on Linux where the symlink and POSIX-only tests execute, on PHP 7.4, 8.1 and 8.3.
+Tests run without WordPress loaded; `tests/bootstrap.php` stubs the WordPress functions the plugin needs. On Windows, 14 tests are skipped (symlink and POSIX-only cases). CI runs the suite on Linux where the symlink and POSIX-only tests execute, on PHP 7.4, 8.1 and 8.3.
 
 `languages/techthrill-mcp.pot` currently holds only the header. Regenerate it with WP-CLI:
 
@@ -155,7 +155,7 @@ wp i18n make-pot . languages/techthrill-mcp.pot --domain=techthrill-mcp
 
 Run this once against a real WordPress site before a release. Nothing here has been verified against a live site during development; the unit tests cover the logic only. Replace `{prefix}` with your table prefix.
 
-1. Gate: run the suite on Linux (CI, WSL or Docker) and confirm the 13 tests skipped on Windows run and pass. Do not continue until they do.
+1. Gate: run the suite on Linux (CI, WSL or Docker) and confirm the 14 tests skipped on Windows run and pass. Do not continue until they do.
 2. Copy the plugin folder into `wp-content/plugins/` (or upload the zip) and activate it. Confirm the tables `{prefix}techthrill_mcp_tokens` (id, name, lookup, hash, scopes, user_id, created_at, expires_at, last_used_at, revoked_at) and `{prefix}techthrill_mcp_log` (id, token_id, tool, summary, status, duration_ms, created_at) exist.
 3. Open TechThrill MCP > Connect. The status card shows rows for HTTPS, REST reachable, PHP exec and WP-CLI. On a non-local site served over plain HTTP, confirm the HTTPS row shows the warning.
 4. Create a token with each preset (Full access, Read only, Files only). Confirm the one-time token box shows once and is gone after a page reload.
