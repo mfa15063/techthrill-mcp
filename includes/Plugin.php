@@ -122,8 +122,8 @@ final class Plugin {
 
 		$this->token_repository = new WpTokenRepository( $wpdb );
 		$this->token_manager    = new TokenManager( $this->token_repository );
-		$limiter             = new RateLimiter( (int) $this->settings->get( 'rate_limit' ), new TransientRateLimitStore() );
-		$authenticator       = new Authenticator(
+		$limiter                = new RateLimiter( (int) $this->settings->get( 'rate_limit' ), new TransientRateLimitStore() );
+		$authenticator          = new Authenticator(
 			$this->token_manager,
 			$limiter,
 			function ( int $user_id ): bool {

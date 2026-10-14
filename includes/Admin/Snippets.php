@@ -29,7 +29,7 @@ final class Snippets {
 		$slug = trim( $slug, '-' );
 		$slug = trim( substr( $slug, 0, self::MAX_SLUG_LENGTH ), '-' );
 
-		return '' === $slug ? 'wordpress' : $slug;
+		return '' === $slug ? 'wordpress' : $slug; // phpcs:ignore WordPress.WP.CapitalPDangit.MisspelledInText -- Lower-case server slug, not display text.
 	}
 
 	/**
@@ -76,7 +76,7 @@ final class Snippets {
 	 * @param string $token Plain token.
 	 */
 	public static function json( string $slug, string $url, string $token ): string {
-		return (string) json_encode(
+		return (string) wp_json_encode(
 			array(
 				'mcpServers' => array(
 					$slug => array(

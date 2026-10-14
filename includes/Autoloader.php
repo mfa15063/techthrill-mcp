@@ -25,12 +25,12 @@ final class Autoloader {
 		$root = rtrim( $baseDir, '/\\' ) . '/includes/';
 
 		spl_autoload_register(
-			static function ( string $class ) use ( $root ): void {
-				if ( strpos( $class, self::PREFIX ) !== 0 ) {
+			static function ( string $className ) use ( $root ): void {
+				if ( strpos( $className, self::PREFIX ) !== 0 ) {
 					return;
 				}
 
-				$relative = substr( $class, strlen( self::PREFIX ) );
+				$relative = substr( $className, strlen( self::PREFIX ) );
 				$file     = $root . str_replace( '\\', '/', $relative ) . '.php';
 
 				if ( is_file( $file ) ) {

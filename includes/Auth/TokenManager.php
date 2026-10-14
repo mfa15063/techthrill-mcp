@@ -56,6 +56,7 @@ final class TokenManager {
 	 * @param int         $user_id    Owning WordPress user.
 	 * @param string|null $expires_at Expiry as `Y-m-d H:i:s` UTC, or null for none.
 	 * @return array{id:int,token:string}
+	 * @throws \RuntimeException When the token cannot be stored.
 	 */
 	public function create( string $name, array $scopes, int $user_id, ?string $expires_at ): array {
 		$plain = self::PREFIX . self::randomString( self::LENGTH );
@@ -203,13 +204,15 @@ final class TokenManager {
 		$limit    = 256 - ( 256 % $size );
 		$out      = '';
 
-		while ( strlen( $out ) < $length ) {
+		$count = 0;
+		while ( $count < $length ) {
 			foreach ( unpack( 'C*', random_bytes( $length ) ) as $byte ) {
 				if ( $byte >= $limit ) {
 					continue;
 				}
 				$out .= $alphabet[ $byte % $size ];
-				if ( strlen( $out ) === $length ) {
+				++$count;
+				if ( $count === $length ) {
 					break;
 				}
 			}

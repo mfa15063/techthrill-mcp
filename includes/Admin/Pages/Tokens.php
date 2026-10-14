@@ -39,7 +39,7 @@ final class Tokens {
 	}
 
 	/**
-	 * admin-post handler: revokes a token.
+	 * Admin-post handler: revokes a token.
 	 */
 	public function handleRevoke(): void {
 		Flash::guard( 'techthrill_mcp_revoke_token' );
@@ -55,7 +55,7 @@ final class Tokens {
 	}
 
 	/**
-	 * admin-post handler: deletes a revoked or expired token.
+	 * Admin-post handler: deletes a revoked or expired token.
 	 */
 	public function handleDelete(): void {
 		Flash::guard( 'techthrill_mcp_delete_token' );

@@ -1,0 +1,66 @@
+<?xml version="1.0"?>
+<ruleset name="TechThrill MCP">
+	<description>Coding standards for the TechThrill MCP plugin.</description>
+
+	<file>techthrill-mcp.php</file>
+	<file>uninstall.php</file>
+	<file>includes</file>
+
+	<exclude-pattern>*/vendor/*</exclude-pattern>
+	<exclude-pattern>*/tests/*</exclude-pattern>
+	<exclude-pattern>*/dist/*</exclude-pattern>
+	<exclude-pattern>*/node_modules/*</exclude-pattern>
+	<exclude-pattern>*/.superpowers/*</exclude-pattern>
+
+	<arg name="extensions" value="php"/>
+	<arg name="colors"/>
+	<arg value="ps"/>
+	<arg name="parallel" value="8"/>
+
+	<config name="testVersion" value="7.4-"/>
+
+	<rule ref="WordPress"/>
+	<rule ref="PHPCompatibilityWP"/>
+
+	<rule ref="WordPress.WP.I18n">
+		<properties>
+			<property name="text_domain" type="array">
+				<element value="techthrill-mcp"/>
+			</property>
+		</properties>
+	</rule>
+
+	<rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+		<properties>
+			<property name="prefixes" type="array">
+				<element value="techthrill_mcp"/>
+				<element value="TechThrill\MCP"/>
+				<element value="TECHTHRILL_MCP"/>
+			</property>
+		</properties>
+	</rule>
+
+	<!-- Excluded: PSR-4 requires class-named files (Server.php), not class-server.php. -->
+	<rule ref="WordPress.Files.FileName">
+		<exclude name="WordPress.Files.FileName"/>
+	</rule>
+
+	<!-- Excluded: the codebase uses camelCase method names, parameters and properties consistently; renaming would touch every file and every test with no safety value. -->
+	<rule ref="WordPress.NamingConventions.ValidVariableName">
+		<exclude name="WordPress.NamingConventions.ValidVariableName"/>
+	</rule>
+	<rule ref="WordPress.NamingConventions.ValidFunctionName">
+		<exclude name="WordPress.NamingConventions.ValidFunctionName.MethodNameInvalid"/>
+	</rule>
+
+	<!-- Excluded: docblock presence only. Types are declared in PHP 7.4 signatures and typed properties, so boilerplate docblocks add nothing. Malformed docblocks are still checked. -->
+	<rule ref="Squiz.Commenting.FunctionComment">
+		<exclude name="Squiz.Commenting.FunctionComment.Missing"/>
+	</rule>
+	<rule ref="Squiz.Commenting.VariableComment">
+		<exclude name="Squiz.Commenting.VariableComment.Missing"/>
+	</rule>
+	<rule ref="Generic.Commenting.DocComment">
+		<exclude name="Generic.Commenting.DocComment.MissingShort"/>
+	</rule>
+</ruleset>

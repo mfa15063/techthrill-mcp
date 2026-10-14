@@ -1,0 +1,73 @@
+=== TechThrill MCP ===
+Contributors: techthrill
+Tags: mcp, claude, codex, ai, wp-cli
+Requires at least: 6.0
+Tested up to: 6.9
+Requires PHP: 7.4
+Stable tag: 1.0.0
+License: GPLv2 or later
+License URI: https://www.gnu.org/licenses/gpl-2.0.html
+
+Turns your WordPress site into an MCP server so Claude Code or Codex can run WP-CLI, query the database and edit files, under tokens you control.
+
+== Description ==
+
+TechThrill MCP adds a Model Context Protocol (MCP) endpoint to your site. AI clients such as Claude Code and Codex connect to it with a bearer token and get a small, well-defined set of tools:
+
+* `site_info` - URLs, versions, paths, active theme and plugins, and what the host can run.
+* `wp_cli` - run a WP-CLI command (needs the `wp-cli` scope).
+* `db_query`, `db_execute`, `db_schema` - read, change and inspect the database (`db:read`, `db:write`).
+* `file_list`, `file_read`, `file_search`, `file_write`, `file_edit`, `file_delete` - work with files under the WordPress root (`files:read`, `files:write`).
+
+Nothing is exposed until an administrator creates a token. Tokens are created under TechThrill MCP in the admin menu, are shown once, and each token carries only the scopes you give it. The Connect page shows copy-and-paste setup commands for Claude Code, Codex and generic MCP clients.
+
+The endpoint is `POST /wp-json/techthrill-mcp/v1/mcp` with an `Authorization: Bearer ttm_...` header.
+
+= Safety in plain words =
+
+* No token, no access. A fresh install exposes nothing.
+* Safe mode is on by default. It refuses DELETE or UPDATE without a WHERE clause, destructive WP-CLI commands, deleting directories, and writes to protected paths.
+* File tools are jailed to the WordPress root, and `wp-config.php` can never be modified through them.
+* Every tool call is written to an activity log you can read and clear.
+* Requests are rate limited per token.
+
+Developers can adjust the tool list, the blocked WP-CLI commands, the protected paths and the file search ignore list with filters (see the README on GitHub).
+
+== Installation ==
+
+1. Upload the `techthrill-mcp` folder to `/wp-content/plugins/`, or upload the zip under Plugins > Add New > Upload Plugin.
+2. Activate the plugin through the Plugins screen.
+3. Open TechThrill MCP in the admin menu. On the Connect tab, create a token with the scopes you want (Full access, Read only or Files only).
+4. Copy the command for your client from the Connect tab and run it on your own machine.
+5. Use HTTPS on any site that is reachable from the internet.
+
+== Frequently Asked Questions ==
+
+= Does it work without WP-CLI? =
+
+Yes. The database and file tools work without it. Only `wp_cli` needs a WP-CLI binary and a host that allows running programs. The Connect page shows what your host supports. On Windows hosts that only have `wp.bat`, the plugin does not run batch files; use `wp.exe`, or the Download WP-CLI button on the Connect page.
+
+= Is it safe? =
+
+It is designed to be careful, but you are handing an AI client real control of your site. Create tokens with the fewest scopes needed, keep safe mode on, use HTTPS, and read the Activity tab. Treat a full-access token like an administrator password.
+
+= How do I revoke access? =
+
+Open TechThrill MCP > Tokens and revoke the token. The client gets a 401 on its next request. Revoked tokens can then be deleted. Deactivating the plugin removes the endpoint.
+
+= What happens on multisite? =
+
+Activate the plugin per site. Tokens and activity logs are per site, while the files on disk are shared by every site in the network, so a file-scoped token on one site can touch files that belong to others.
+
+= What is removed when I delete the plugin? =
+
+Both database tables (tokens and activity log), the settings, and the scheduled cleanup event.
+
+== Security ==
+
+Nothing is exposed until you create a token. Tokens are stored only as SHA-256 hashes; the plain token is displayed once when you create it and cannot be recovered. Each token has scopes (`wp-cli`, `db:read`, `db:write`, `files:read`, `files:write`) and an optional expiry, and can be revoked at any time. Safe mode is on by default and refuses destructive operations until you turn it off. Every tool call, including refusals, is recorded in the audit log under TechThrill MCP > Activity and pruned after the retention period. The Connect page shows a warning when the site is not served over HTTPS; tokens are sent in a header, so use HTTPS on any public site.
+
+== Changelog ==
+
+= 1.0.0 =
+* Initial release: MCP endpoint, bearer tokens with scopes, WP-CLI, database and file tools, safe mode, rate limiting, activity log and admin pages.

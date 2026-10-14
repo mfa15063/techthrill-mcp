@@ -109,6 +109,9 @@ final class Settings {
 	}
 
 	/**
+	 * Reads a setting value.
+	 *
+	 * @param string $key Setting key.
 	 * @return mixed
 	 */
 	private function value( string $key ) {

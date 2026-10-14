@@ -10,6 +10,7 @@ namespace TechThrill\MCP\Tools;
 use TechThrill\MCP\Safety\PathJail;
 use TechThrill\MCP\Safety\SafeMode;
 
+// phpcs:disable WordPress.WP.AlternativeFunctions, WordPress.PHP.NoSilencedErrors.Discouraged -- This tool operates directly on site files that PathJail has already confined; WP_Filesystem needs credentials and an admin request context, and every silenced call is checked through its return value.
 defined( 'ABSPATH' ) || exit;
 
 /**
@@ -122,3 +123,5 @@ abstract class AbstractFileTool extends AbstractTool {
 		return '.' === $baseRelative ? $tail : $baseRelative . '/' . $tail;
 	}
 }
+
+// phpcs:enable WordPress.WP.AlternativeFunctions, WordPress.PHP.NoSilencedErrors.Discouraged

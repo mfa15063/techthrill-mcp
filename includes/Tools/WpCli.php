@@ -158,8 +158,8 @@ final class WpCli extends AbstractTool {
 	 */
 	private function environment(): array {
 		$env = array(
-			'PATH'                             => (string) ( getenv( 'PATH' ) ?: '' ),
-			'HOME'                             => (string) ( getenv( 'HOME' ) ?: ( getenv( 'USERPROFILE' ) ?: '' ) ),
+			'PATH'                             => (string) ( getenv( 'PATH' ) ? getenv( 'PATH' ) : '' ),
+			'HOME'                             => (string) ( getenv( 'HOME' ) ? getenv( 'HOME' ) : ( getenv( 'USERPROFILE' ) ? getenv( 'USERPROFILE' ) : '' ) ),
 			'WP_CLI_DISABLE_AUTO_CHECK_UPDATE' => '1',
 			'WP_CLI_CACHE_DIR'                 => $this->cache_dir,
 		);

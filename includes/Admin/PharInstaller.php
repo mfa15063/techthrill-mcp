@@ -82,7 +82,7 @@ final class PharInstaller {
 		}
 
 		wp_mkdir_p( dirname( $target ) );
-		if ( ! @rename( $tmp, $target ) ) { // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		if ( ! @rename( $tmp, $target ) ) { // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged, WordPress.WP.AlternativeFunctions.rename_rename -- Moves the verified download into uploads; falls back to copy.
 			$copied = @copy( $tmp, $target ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
 			$this->discard( $tmp );
 			if ( ! $copied ) {

@@ -7,6 +7,7 @@
 
 namespace TechThrill\MCP\Mcp;
 
+// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Validation messages are returned to the MCP client as JSON-RPC error text and are never rendered as HTML.
 defined( 'ABSPATH' ) || exit;
 
 /**
@@ -129,3 +130,5 @@ final class SchemaValidator {
 		}
 	}
 }
+
+// phpcs:enable WordPress.Security.EscapeOutput.ExceptionNotEscaped

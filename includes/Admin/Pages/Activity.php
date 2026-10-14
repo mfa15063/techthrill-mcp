@@ -57,7 +57,7 @@ final class Activity {
 	}
 
 	/**
-	 * admin-post handler: empties the log.
+	 * Admin-post handler: empties the log.
 	 */
 	public function handleClear(): void {
 		Flash::guard( 'techthrill_mcp_clear_log' );

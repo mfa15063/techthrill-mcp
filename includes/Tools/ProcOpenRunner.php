@@ -1,12 +1,13 @@
 <?php
 /**
- * proc_open based process runner.
+ * Process runner based on proc_open.
  *
  * @package TechThrill\MCP
  */
 
 namespace TechThrill\MCP\Tools;
 
+// phpcs:disable WordPress.PHP.DiscouragedPHPFunctions.system_calls_proc_open, WordPress.WP.AlternativeFunctions -- Running WP-CLI is the purpose of this class (it is gated by the wp-cli scope and CommandParser); the pipe and temp-file handles it opens are not WP_Filesystem targets.
 defined( 'ABSPATH' ) || exit;
 
 /**
@@ -173,7 +174,7 @@ final class ProcOpenRunner implements ProcessRunner {
 
 		if ( $windows ) {
 			// Let the terminated process release its output files before reading them.
-			$closed = proc_close( $proc );
+			$closed                  = proc_close( $proc );
 			list( $out, $out_trunc ) = $this->readCapped( $files[0] );
 			list( $err, $err_trunc ) = $this->readCapped( $files[1] );
 			$this->removeFiles( $files );
@@ -269,3 +270,5 @@ final class ProcOpenRunner implements ProcessRunner {
 		return (int) round( ( microtime( true ) - $started ) * 1000 );
 	}
 }
+
+// phpcs:enable WordPress.PHP.DiscouragedPHPFunctions.system_calls_proc_open, WordPress.WP.AlternativeFunctions

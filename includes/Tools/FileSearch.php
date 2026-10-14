@@ -9,6 +9,7 @@ namespace TechThrill\MCP\Tools;
 
 use TechThrill\MCP\Safety\PathException;
 
+// phpcs:disable WordPress.WP.AlternativeFunctions, WordPress.PHP.NoSilencedErrors.Discouraged -- This tool operates directly on site files that PathJail has already confined; WP_Filesystem needs credentials and an admin request context, and every silenced call is checked through its return value.
 defined( 'ABSPATH' ) || exit;
 
 /**
@@ -198,3 +199,5 @@ final class FileSearch extends AbstractFileTool {
 		return function_exists( 'preg_last_error_msg' ) ? preg_last_error_msg() : 'the pattern could not be compiled.';
 	}
 }
+
+// phpcs:enable WordPress.WP.AlternativeFunctions, WordPress.PHP.NoSilencedErrors.Discouraged

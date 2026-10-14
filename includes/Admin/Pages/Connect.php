@@ -45,7 +45,7 @@ final class Connect {
 	}
 
 	/**
-	 * admin-post handler: creates a token.
+	 * Admin-post handler: creates a token.
 	 */
 	public function handleCreate(): void {
 		Flash::guard( 'techthrill_mcp_create_token' );
@@ -93,7 +93,7 @@ final class Connect {
 	}
 
 	/**
-	 * admin-post handler: downloads WP-CLI.
+	 * Admin-post handler: downloads WP-CLI.
 	 */
 	public function handleInstallPhar(): void {
 		Flash::guard( 'techthrill_mcp_install_phar' );
@@ -208,7 +208,7 @@ final class Connect {
 				'timeout'   => 5,
 				'headers'   => array( 'Content-Type' => 'application/json' ),
 				'body'      => '{}',
-				'sslverify' => (bool) apply_filters( 'https_local_ssl_verify', false ),
+				'sslverify' => (bool) apply_filters( 'https_local_ssl_verify', false ), // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Core WordPress hook.
 			)
 		);
 
