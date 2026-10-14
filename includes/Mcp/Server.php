@@ -197,22 +197,43 @@ final class Server {
 			$args = $this->validator->validate( $tool->inputSchema(), $args );
 		} catch ( ValidationException $e ) {
 			return $this->error( $id, JsonRpcError::INVALID_PARAMS, $e->getMessage() );
+		} catch ( \Throwable $e ) {
+			return $this->internal_error( $id, $e );
 		}
 
 		$start = microtime( true );
 		try {
-			$result = $tool->execute( $args, $ctx );
+			$result  = $tool->execute( $args, $ctx );
+			$payload = $result->toMcp();
 		} catch ( \Throwable $e ) {
-			$data = defined( 'WP_DEBUG' ) && WP_DEBUG ? $e->getMessage() : null;
-			return $this->error( $id, JsonRpcError::INTERNAL, 'Internal error', $data );
+			return $this->internal_error( $id, $e );
 		}
 		$ms = (int) round( ( microtime( true ) - $start ) * 1000 );
 
 		if ( null !== $this->on_tool_call ) {
-			call_user_func( $this->on_tool_call, $name, $args, $result, $ms );
+			// A failing observer (for example the audit log) must never change the response of a completed call.
+			try {
+				call_user_func( $this->on_tool_call, $name, $args, $result, $ms );
+			} catch ( \Throwable $e ) {
+				if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+					error_log( 'TechThrill MCP: tool call observer failed: ' . $e->getMessage() ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+				}
+			}
 		}
 
-		return $this->ok( $id, $result->toMcp() );
+		return $this->ok( $id, $payload );
+	}
+
+	/**
+	 * Internal error response; the exception message is exposed only when WP_DEBUG is on.
+	 *
+	 * @param int|string|null $id Request ID.
+	 * @param \Throwable      $e  Exception.
+	 */
+	private function internal_error( $id, \Throwable $e ): HandleResult {
+		$data = defined( 'WP_DEBUG' ) && WP_DEBUG ? $e->getMessage() : null;
+
+		return $this->error( $id, JsonRpcError::INTERNAL, 'Internal error', $data );
 	}
 
 	/**

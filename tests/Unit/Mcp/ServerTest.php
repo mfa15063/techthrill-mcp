@@ -88,11 +88,36 @@ class ServerTest extends TestCase {
 		};
 	}
 
+	private function badSchemaTool(): ToolInterface {
+		return new class() implements ToolInterface {
+			public function name(): string {
+				return 'bad_schema_tool';
+			}
+
+			public function description(): string {
+				return 'Has a malformed schema.';
+			}
+
+			public function inputSchema(): array {
+				return array( 'type' => 'object', 'required' => array( array( 'x' ) ) );
+			}
+
+			public function scope(): ?string {
+				return null;
+			}
+
+			public function execute( array $args, ToolContext $ctx ): ToolResult {
+				return ToolResult::ok( 'never' );
+			}
+		};
+	}
+
 	private function server( ?callable $on_call = null ): Server {
 		$registry = new ToolRegistry();
 		$registry->register( $this->echoTool() );
 		$registry->register( $this->dbTool() );
 		$registry->register( $this->throwingTool() );
+		$registry->register( $this->badSchemaTool() );
 
 		return new Server( $registry, new SchemaValidator(), '1.2.3', $on_call );
 	}
@@ -213,11 +238,11 @@ class ServerTest extends TestCase {
 	public function test_tools_list_filtered_by_scope(): void {
 		$r     = $this->server()->handle( $this->rpc( 'tools/list' ), $this->ctx( array() ) );
 		$names = array_column( $r->body['result']['tools'], 'name' );
-		$this->assertSame( array( 'boom_tool', 'echo_tool' ), $names );
+		$this->assertSame( array( 'bad_schema_tool', 'boom_tool', 'echo_tool' ), $names );
 
 		$r     = $this->server()->handle( $this->rpc( 'tools/list' ), $this->ctx( array( 'db:read' ) ) );
 		$tools = $r->body['result']['tools'];
-		$this->assertSame( array( 'boom_tool', 'db_tool', 'echo_tool' ), array_column( $tools, 'name' ) );
+		$this->assertSame( array( 'bad_schema_tool', 'boom_tool', 'db_tool', 'echo_tool' ), array_column( $tools, 'name' ) );
 		foreach ( $tools as $tool ) {
 			$this->assertArrayHasKey( 'description', $tool );
 			$this->assertArrayHasKey( 'inputSchema', $tool );
@@ -308,6 +333,35 @@ class ServerTest extends TestCase {
 		$r = $this->server()->handle( $this->rpc( 'resources/list' ), $this->ctx() );
 		$this->assertError( $r, -32601 );
 		$this->assertSame( 'Method not found', $r->body['error']['message'] );
+	}
+
+	public function test_throwing_observer_does_not_change_response(): void {
+		$server = $this->server(
+			function () {
+				throw new \RuntimeException( 'audit log down' );
+			}
+		);
+		$r      = $server->handle(
+			$this->rpc( 'tools/call', array( 'name' => 'echo_tool', 'arguments' => array( 'text' => 'hi' ) ) ),
+			$this->ctx()
+		);
+		$this->assertSame( 200, $r->status );
+		$this->assertSame( 'hi', $r->body['result']['content'][0]['text'] );
+		$this->assertFalse( $r->body['result']['isError'] );
+		$this->assertArrayNotHasKey( 'error', $r->body );
+	}
+
+	public function test_malformed_schema_becomes_internal_error(): void {
+		$called = false;
+		$server = $this->server(
+			function () use ( &$called ) {
+				$called = true;
+			}
+		);
+		$r      = $server->handle( $this->rpc( 'tools/call', array( 'name' => 'bad_schema_tool' ) ), $this->ctx() );
+		$this->assertError( $r, -32603 );
+		$this->assertSame( 'Internal error', $r->body['error']['message'] );
+		$this->assertFalse( $called, 'Callback is not invoked for internal errors.' );
 	}
 
 	public function test_on_tool_call_invoked(): void {
