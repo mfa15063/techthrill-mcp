@@ -303,6 +303,51 @@ class SqlClassifierTest extends TestCase {
 		$this->assertSame( 'wp_a', $s->table );
 	}
 
+	public function test_desc_and_describe_analyze_are_other(): void {
+		$sql = 'DELETE p FROM wp_posts p JOIN wp_postmeta m ON m.post_id=p.ID';
+		foreach ( array( 'DESC', 'DESCRIBE', 'desc', 'EXPLAIN' ) as $kw ) {
+			$s = $this->classify( $kw . ' ANALYZE ' . $sql );
+			$this->assertSame( 'other', $s->type, $kw );
+			$this->assertFalse( $s->isRead(), $kw );
+		}
+		$this->assertSame( 'describe', $this->classify( 'DESC wp_posts' )->type );
+	}
+
+	public function test_mariadb_executable_comment_throws_everywhere(): void {
+		$cases = array(
+			"SELECT user_pass FROM wp_users /*M! INTO OUTFILE '/tmp/x' */",
+			'/*M! DELETE FROM wp_posts */ SELECT 1',
+			'/*M!100100 DELETE FROM wp_posts */ SELECT 1',
+			'/*m! DELETE FROM wp_posts */ SELECT 1',
+			'/*M! DELETE FROM wp_posts WHERE ID IN ( */ SELECT post_id FROM wp_postmeta)',
+			'SELECT 1 /*!50000 + 1 */',
+		);
+		foreach ( $cases as $sql ) {
+			try {
+				$this->classify( $sql );
+				$this->fail( 'Expected SqlException for: ' . $sql );
+			} catch ( SqlException $e ) {
+				$this->assertNotSame( '', $e->getMessage() );
+			}
+		}
+	}
+
+	public function test_ordinary_comments_starting_with_m_are_fine(): void {
+		$this->assertSame( 'select', $this->classify( 'SELECT 1 /* M is for me */' )->type );
+		$this->assertSame( 'select', $this->classify( 'SELECT 1 /*M*/' )->type );
+	}
+
+	public function test_trailing_comments_are_dropped_from_sql(): void {
+		$this->assertSame( 'SELECT 1', $this->classify( 'SELECT 1 -- x' )->sql );
+		$this->assertSame( 'SELECT 1', $this->classify( 'SELECT 1 # y' )->sql );
+		$this->assertSame( 'SELECT 1', $this->classify( 'SELECT 1 /* z */' )->sql );
+		$this->assertSame( 'SELECT 1', $this->classify( "SELECT 1 -- x
+;" )->sql );
+		$this->assertSame( 'SELECT * FROM wp_posts', $this->classify( "SELECT * FROM wp_posts -- x
+" )->sql );
+		$this->assertSame( "SELECT 'a -- b'", $this->classify( "SELECT 'a -- b' -- c" )->sql );
+	}
+
 	public function test_statement_is_value_object(): void {
 		$s = new SqlStatement( 'select', true, false, 'wp_x', 'SELECT 1' );
 		$this->assertSame( 'select', $s->type );

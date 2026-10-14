@@ -92,8 +92,8 @@ final class SqlClassifier {
 			}
 		}
 
-		if ( 'explain' === $type && $this->wordAt( $tokens, 1, 'ANALYZE' ) ) {
-			// EXPLAIN ANALYZE executes the statement it describes.
+		if ( ( 'explain' === $type || 'describe' === $type ) && $this->wordAt( $tokens, 1, 'ANALYZE' ) ) {
+			// DESC, DESCRIBE and EXPLAIN are one keyword; ANALYZE executes the statement it describes.
 			$type = 'other';
 		}
 
@@ -140,7 +140,7 @@ final class SqlClassifier {
 		$depth      = 0;
 		$tokens     = array();
 		$start      = 0;
-		$end        = $len;
+		$end        = 0;
 		$terminated = false;
 
 		while ( $i < $len ) {
@@ -158,9 +158,9 @@ final class SqlClassifier {
 				continue;
 			}
 			if ( '/' === $c && $i + 1 < $len && '*' === $sql[ $i + 1 ] ) {
-				if ( $i + 2 < $len && '!' === $sql[ $i + 2 ] ) {
-					// MySQL runs the body of /*! ... */, so it can hide a statement.
-					throw new SqlException( 'MySQL executable comments (/*! ... */) are not allowed.' );
+				if ( $this->isExecutableComment( $sql, $i, $len ) ) {
+					// MySQL runs the body of /*! ... */ and MariaDB that of /*M! ... */, so it can hide a statement.
+					throw new SqlException( 'MySQL/MariaDB executable comments (/*! ... */, /*M! ... */) are not allowed.' );
 				}
 				$close = strpos( $sql, '*/', $i + 2 );
 				$i     = false === $close ? $len : $close + 2;
@@ -176,7 +176,6 @@ final class SqlClassifier {
 				if ( array() === $tokens ) {
 					throw new SqlException( 'Empty SQL statement.' );
 				}
-				$end        = $i;
 				$terminated = true;
 				++$i;
 				continue;
@@ -214,6 +213,7 @@ final class SqlClassifier {
 					'u' => '',
 					'd' => $depth,
 				);
+				$end      = min( $i, $len );
 				continue;
 			}
 
@@ -229,6 +229,7 @@ final class SqlClassifier {
 					'u' => strtoupper( $word ),
 					'd' => $depth,
 				);
+				$end      = min( $i, $len );
 				continue;
 			}
 
@@ -245,6 +246,7 @@ final class SqlClassifier {
 				++$depth;
 			}
 			++$i;
+			$end = $i;
 		}
 
 		return array(
@@ -252,6 +254,23 @@ final class SqlClassifier {
 			'start'  => $start,
 			'end'    => $end,
 		);
+	}
+
+	/**
+	 * Whether a block comment at an offset is a MySQL (/*!) or MariaDB (/*M!) executable comment.
+	 *
+	 * @param string $sql Raw SQL.
+	 * @param int    $i   Offset of the slash.
+	 * @param int    $len SQL length.
+	 */
+	private function isExecutableComment( string $sql, int $i, int $len ): bool {
+		if ( $i + 2 >= $len ) {
+			return false;
+		}
+		if ( '!' === $sql[ $i + 2 ] ) {
+			return true;
+		}
+		return ( 'M' === $sql[ $i + 2 ] || 'm' === $sql[ $i + 2 ] ) && $i + 3 < $len && '!' === $sql[ $i + 3 ];
 	}
 
 	/**
