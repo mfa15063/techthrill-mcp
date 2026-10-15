@@ -36,6 +36,7 @@ final class Tokens {
 		$table = new TokensListTable( $this->repository() );
 		$table->prepare_items();
 		$table->display();
+		echo '<p class="description">' . esc_html__( 'Connections marked OAuth were approved on the consent screen. They renew automatically until you revoke them or they go unused for 30 days. Revoking one stops it immediately.', 'techthrill-mcp' ) . '</p>';
 	}
 
 	/**

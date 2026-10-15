@@ -81,7 +81,9 @@ final class TokensListTable extends \WP_List_Table {
 			$actions['delete'] = '<a href="' . esc_url( $this->actionUrl( 'techthrill_mcp_delete_token', $id ) ) . '" class="submitdelete" data-ttm-confirm="' . esc_attr__( 'Delete this token permanently?', 'techthrill-mcp' ) . '">' . esc_html__( 'Delete', 'techthrill-mcp' ) . '</a>';
 		}
 
-		return '<strong>' . esc_html( (string) $item['name'] ) . '</strong>' . $this->row_actions( $actions );
+		$kind = 'OAuth' === TokenStatus::kindLabel( $item ) ? ' <span class="ttm-badge ttm-kind-oauth">' . esc_html__( 'OAuth', 'techthrill-mcp' ) . '</span>' : '';
+
+		return '<strong>' . esc_html( (string) $item['name'] ) . '</strong>' . $kind . $this->row_actions( $actions );
 	}
 
 	/**
@@ -122,7 +124,7 @@ final class TokensListTable extends \WP_List_Table {
 	 * @param array $item Token row.
 	 */
 	protected function column_expires_at( $item ) {
-		return esc_html( $this->formatDate( $item['expires_at'] ?? null, __( 'Never', 'techthrill-mcp' ) ) );
+		return esc_html( $this->formatDate( TokenStatus::expiryOf( $item ), __( 'Never', 'techthrill-mcp' ) ) );
 	}
 
 	/**

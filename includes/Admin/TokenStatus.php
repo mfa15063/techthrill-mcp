@@ -19,6 +19,27 @@ final class TokenStatus {
 	const REVOKED = 'revoked';
 
 	/**
+	 * Type label of a token row: OAuth for grants made through the consent screen, Bearer otherwise.
+	 *
+	 * @param array $row Token row.
+	 */
+	public static function kindLabel( array $row ): string {
+		return 'oauth' === ( $row['kind'] ?? null ) ? 'OAuth' : 'Bearer';
+	}
+
+	/**
+	 * The expiry that matters for a row: an OAuth grant lasts as long as its refresh token.
+	 *
+	 * @param array $row Token row.
+	 * @return string|null UTC `Y-m-d H:i:s`, or null for no expiry.
+	 */
+	public static function expiryOf( array $row ): ?string {
+		$value = 'oauth' === ( $row['kind'] ?? null ) ? ( $row['refresh_expires_at'] ?? null ) : ( $row['expires_at'] ?? null );
+
+		return empty( $value ) ? null : (string) $value;
+	}
+
+	/**
 	 * Status of a token row at a point in time.
 	 *
 	 * @param array $row Token row with `expires_at` and `revoked_at` (UTC `Y-m-d H:i:s` or null); OAuth rows use `refresh_expires_at`.
