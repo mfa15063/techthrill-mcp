@@ -53,8 +53,8 @@ final class Connect {
 	public function render(): void {
 		$problems = $this->plugin->oauth()->problems();
 
-		$this->renderOneClick( $problems );
 		$this->renderAgentPrompt();
+		$this->renderOneClick( $problems );
 		$this->renderStatusCard();
 
 		// The bearer-token flow stays available as an Advanced fallback. It opens by itself right after a token
@@ -205,11 +205,29 @@ final class Connect {
 			return;
 		}
 
+		$steps = array(
+			__( 'Copy the prompt below.', 'techthrill-mcp' ),
+			__( 'Paste it into your AI agent.', 'techthrill-mcp' ),
+			__( 'Open the link the agent shows you, check the code, tick the permissions and press Approve.', 'techthrill-mcp' ),
+			__( 'Done. The agent gets access for 30 days. Revoke it any time on the Tokens tab.', 'techthrill-mcp' ),
+		);
+
 		echo '<div class="ttm-card ttm-agent-prompt"><h2>' . esc_html__( 'Connect an AI agent with a prompt', 'techthrill-mcp' ) . '</h2>';
-		echo '<p>' . esc_html__( 'Copy this prompt and paste it into Claude Code, Codex or the Cursor agent. The agent shows you a link; open it, check the code, choose the permissions and approve. The prompt contains no token and nothing secret.', 'techthrill-mcp' ) . '</p>';
-		echo '<p class="ttm-warning">' . esc_html__( 'A normal chat window (for example free Claude or ChatGPT in the browser) cannot do this. If you paste the prompt there, it replies that you need an agent that can run commands, or a plan with custom connectors. For those use "Connect with one paste" above.', 'techthrill-mcp' ) . '</p>';
-		echo '<pre class="ttm-prompt"><code id="ttm-agent-prompt">' . esc_html( $this->plugin->oauth()->agentPrompt() ) . '</code></pre>';
-		$this->copyButton( 'ttm-agent-prompt' );
+		echo '<p class="ttm-chips"><span class="ttm-chip">' . esc_html__( 'Claude Code', 'techthrill-mcp' ) . '</span><span class="ttm-chip">' . esc_html__( 'Codex', 'techthrill-mcp' ) . '</span><span class="ttm-chip">' . esc_html__( 'Cursor agent', 'techthrill-mcp' ) . '</span><span class="ttm-chip ttm-chip-ok">' . esc_html__( 'No token or secret inside the prompt', 'techthrill-mcp' ) . '</span></p>';
+		echo '<ol class="ttm-steps">';
+		foreach ( $steps as $step ) {
+			echo '<li>' . esc_html( $step ) . '</li>';
+		}
+		echo '</ol>';
+
+		// The copy button sits in a box that does not scroll, so it stays put while a long prompt scrolls underneath it.
+		echo '<div class="ttm-prompt-box"><button type="button" class="ttm-copy-icon" data-ttm-copy="ttm-agent-prompt" data-ttm-copied="' . esc_attr__( 'Copied', 'techthrill-mcp' ) . '" title="' . esc_attr__( 'Copy the prompt', 'techthrill-mcp' ) . '" aria-label="' . esc_attr__( 'Copy the prompt', 'techthrill-mcp' ) . '">';
+		echo '<svg class="ttm-icon-copy" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path fill="currentColor" d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z"/></svg>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Constant markup.
+		echo '<svg class="ttm-icon-done" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Constant markup.
+		echo '</button><pre class="ttm-prompt"><code id="ttm-agent-prompt">' . esc_html( $this->plugin->oauth()->agentPrompt() ) . '</code></pre></div>';
+
+		echo '<div class="ttm-callout ttm-callout-warning"><strong>' . esc_html__( 'Not for a normal chat window.', 'techthrill-mcp' ) . '</strong> ';
+		echo esc_html__( 'Free Claude or ChatGPT in the browser cannot run commands. If you paste the prompt there, it will reply that you need an agent that can run commands, or a plan with custom connectors. For those, use "Connect with one paste" below.', 'techthrill-mcp' ) . '</div>';
 		echo '</div>';
 	}
 
@@ -352,7 +370,10 @@ final class Connect {
 		$rows[] = array(
 			__( 'PHP exec', 'techthrill-mcp' ),
 			$exec ? 'ok' : 'warning',
-			$exec ? __( 'Available.', 'techthrill-mcp' ) : __( 'Not available: commands cannot be run on this host.', 'techthrill-mcp' ),
+			$exec
+				? __( 'Available.', 'techthrill-mcp' )
+				/* translators: %s: PHP function names, for example proc_open */
+				: sprintf( __( 'Not available: the server\'s PHP settings turn off %s. This is set by your hosting company (the disable_functions setting), not by this plugin or a security plugin. Ask the host to allow it. The database and file tools work without it.', 'techthrill-mcp' ), implode( ', ', $host->blockedProcessFunctions() ) ),
 			'',
 		);
 

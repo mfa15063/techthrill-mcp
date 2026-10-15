@@ -353,4 +353,10 @@ class HostCapabilitiesTest extends TestCase {
 
 		$this->assertNull( $this->host( array(), $dir, $bin, '', 'example.com', false, 'cgi-fcgi', $this->tempDir() )->wpBinary() );
 	}
+
+	public function test_blocked_process_functions_names_what_the_server_disabled(): void {
+		$this->assertSame( array(), $this->host( array(), $this->tempDir(), '', 'exec,shell_exec' )->blockedProcessFunctions() );
+		$this->assertSame( array( 'proc_open' ), $this->host( array(), $this->tempDir(), '', 'exec, PROC_OPEN ,shell_exec' )->blockedProcessFunctions() );
+		$this->assertSame( array( 'proc_open', 'proc_terminate' ), $this->host( array(), $this->tempDir(), '', 'proc_terminate,proc_open' )->blockedProcessFunctions() );
+	}
 }

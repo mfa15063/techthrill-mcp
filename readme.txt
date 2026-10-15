@@ -4,7 +4,7 @@ Tags: mcp, claude, codex, ai, wp-cli
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.2.1
+Stable tag: 1.2.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -76,6 +76,10 @@ Long WP-CLI runs may be cut short by the host's PHP `max_execution_time` or by a
 On multisite, deleting the plugin removes only the current site's tables.
 
 == Changelog ==
+
+= 1.2.2 =
+* Connect page: the prompt card is now first, with four numbered steps, client chips, a larger copy-icon button that stays in place while the prompt scrolls, and the warning for normal chat windows below the prompt. "Connect with one paste" follows it.
+* Status: when PHP exec is not available, the row now names the disabled functions and says the setting comes from the hosting company.
 
 = 1.2.1 =
 * Connect page: new "Connect an AI agent with a prompt" card. Copy the prompt into Claude Code, Codex or the Cursor agent; it shows you a link and a short code, you choose the permissions and approve, and the agent receives a 30-day token once. The prompt contains no token. A normal chat window that cannot run commands is told to stop and say it needs an agent or a connector.

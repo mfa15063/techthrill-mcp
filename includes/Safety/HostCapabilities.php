@@ -92,16 +92,26 @@ class HostCapabilities {
 	 * Whether PHP can spawn and supervise a process (every proc_* function the runner uses exists and is enabled).
 	 */
 	public function execAvailable(): bool {
+		return array() === $this->blockedProcessFunctions();
+	}
+
+	/**
+	 * The process functions PHP cannot use here, because the server's disable_functions setting lists them or they do not exist.
+	 *
+	 * @return string[]
+	 */
+	public function blockedProcessFunctions(): array {
 		$disabled = null !== $this->disable_functions ? $this->disable_functions : (string) ini_get( 'disable_functions' );
 		$disabled = array_map( 'trim', explode( ',', strtolower( $disabled ) ) );
 
+		$blocked = array();
 		foreach ( self::PROCESS_FUNCTIONS as $function ) {
 			if ( ! function_exists( $function ) || in_array( $function, $disabled, true ) ) {
-				return false;
+				$blocked[] = $function;
 			}
 		}
 
-		return true;
+		return $blocked;
 	}
 
 	/**

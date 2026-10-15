@@ -30,7 +30,16 @@
 			return;
 		}
 		var original = button.textContent;
+		var iconOnly = button.classList.contains( 'ttm-copy-icon' );
 		copyText( target.textContent ).then( function () {
+			if ( iconOnly ) {
+				// Icon buttons show a check mark instead of changing their text.
+				button.classList.add( 'is-copied' );
+				window.setTimeout( function () {
+					button.classList.remove( 'is-copied' );
+				}, 1500 );
+				return;
+			}
 			button.textContent = button.getAttribute( 'data-ttm-copied' ) || original;
 			window.setTimeout( function () {
 				button.textContent = original;

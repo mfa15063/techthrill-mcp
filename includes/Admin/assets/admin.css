@@ -237,9 +237,125 @@
 	margin-left: 20px;
 }
 
+.ttm-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin: 4px 0 16px;
+}
+
+.ttm-chip {
+	background: #f0f6fc;
+	border: 1px solid #c5d9ed;
+	border-radius: 999px;
+	color: #1d2327;
+	font-size: 13px;
+	padding: 3px 12px;
+}
+
+.ttm-chip-ok {
+	background: #edfaef;
+	border-color: #b8e6bf;
+}
+
+.ttm-chip-ok::before {
+	color: #00a32a;
+	content: "\2713  ";
+	font-weight: 700;
+}
+
+.ttm-steps {
+	counter-reset: ttm-step;
+	list-style: none;
+	margin: 0 0 16px;
+	padding: 0;
+}
+
+.ttm-steps li {
+	align-items: center;
+	counter-increment: ttm-step;
+	display: flex;
+	gap: 12px;
+	margin: 0 0 10px;
+}
+
+.ttm-steps li::before {
+	align-items: center;
+	background: #2271b1;
+	border-radius: 50%;
+	color: #fff;
+	content: counter(ttm-step);
+	display: inline-flex;
+	flex: 0 0 26px;
+	font-size: 13px;
+	font-weight: 600;
+	height: 26px;
+	justify-content: center;
+}
+
+.ttm-prompt-box {
+	position: relative;
+}
+
 .ttm-prompt {
-	max-height: 260px;
+	background: #f6f7f7;
+	border: 1px solid #c3c4c7;
+	border-radius: 6px;
+	margin: 0;
+	max-height: 280px;
 	overflow: auto;
+	padding: 14px 64px 14px 16px;
 	white-space: pre-wrap;
 	word-break: break-word;
+}
+
+.ttm-copy-icon {
+	align-items: center;
+	background: #fff;
+	border: 1px solid #2271b1;
+	border-radius: 6px;
+	color: #2271b1;
+	cursor: pointer;
+	display: inline-flex;
+	height: 44px;
+	justify-content: center;
+	padding: 0;
+	position: absolute;
+	right: 12px;
+	top: 12px;
+	width: 44px;
+	z-index: 2;
+}
+
+.ttm-copy-icon:hover,
+.ttm-copy-icon:focus-visible {
+	background: #2271b1;
+	color: #fff;
+}
+
+.ttm-copy-icon .ttm-icon-done,
+.ttm-copy-icon.is-copied .ttm-icon-copy {
+	display: none;
+}
+
+.ttm-copy-icon.is-copied {
+	background: #00a32a;
+	border-color: #00a32a;
+	color: #fff;
+}
+
+.ttm-copy-icon.is-copied .ttm-icon-done {
+	display: block;
+}
+
+.ttm-callout {
+	border-left: 4px solid #2271b1;
+	border-radius: 4px;
+	margin: 16px 0 0;
+	padding: 12px 16px;
+}
+
+.ttm-callout-warning {
+	background: #fcf9e8;
+	border-left-color: #dba617;
 }
