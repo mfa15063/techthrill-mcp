@@ -19,6 +19,7 @@ use TechThrill\MCP\Logging\AuditLog;
 use TechThrill\MCP\Mcp\RestController;
 use TechThrill\MCP\Mcp\SchemaValidator;
 use TechThrill\MCP\Mcp\Server;
+use TechThrill\MCP\OAuth\Module as OAuthModule;
 use TechThrill\MCP\Safety\CommandParser;
 use TechThrill\MCP\Safety\HostCapabilities;
 use TechThrill\MCP\Safety\PathJail;
@@ -83,6 +84,8 @@ final class Plugin {
 	private TokenManager $token_manager;
 
 	private TokenRepository $token_repository;
+
+	private OAuthModule $oauth;
 
 	private function __construct() {}
 
@@ -174,14 +177,23 @@ final class Plugin {
 			}
 		);
 
-		$controller = new RestController( $authenticator, $server, array( $this, 'setCurrentTokenId' ) );
+		$this->oauth = new OAuthModule( $wpdb, $this->token_manager );
+		$this->oauth->boot();
+
+		// Resolved lazily: rest_url() cannot be called this early, and the challenge is only needed on a 401.
+		$challenge  = function ( bool $invalid_token ): string {
+			return $this->oauth->metadata()->challenge( $invalid_token );
+		};
+		$controller = new RestController( $authenticator, $server, array( $this, 'setCurrentTokenId' ), $challenge );
 		add_action( 'rest_api_init', array( $controller, 'register' ) );
 
 		$settings = $this->settings;
+		$oauth    = $this->oauth;
 		add_action(
 			Activator::PRUNE_HOOK,
-			function () use ( $audit_log, $settings ): void {
+			function () use ( $audit_log, $settings, $oauth ): void {
 				$audit_log->prune( (int) $settings->get( 'log_retention_days' ) );
+				$oauth->prune();
 			}
 		);
 
@@ -232,6 +244,10 @@ final class Plugin {
 
 	public function tokenManager(): TokenManager {
 		return $this->token_manager;
+	}
+
+	public function oauth(): OAuthModule {
+		return $this->oauth;
 	}
 
 	public function tokenRepository(): TokenRepository {

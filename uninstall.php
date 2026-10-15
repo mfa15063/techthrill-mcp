@@ -17,6 +17,15 @@ $wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}techthrill_mcp_log" ); // php
 
 delete_option( 'techthrill_mcp_settings' );
 delete_option( 'techthrill_mcp_db_version' );
+delete_option( 'techthrill_mcp_oauth_clients' );
+
+// Pending authorization codes (one option each).
+$wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- One-off cleanup of plugin options on uninstall.
+	$wpdb->prepare(
+		"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s",
+		$wpdb->esc_like( 'techthrill_mcp_oauth_code_' ) . '%'
+	)
+);
 
 // Transients (rate-limit windows, notices, the REST self-check) and their timeouts.
 $wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- One-off cleanup of plugin transients on uninstall.
