@@ -13,5 +13,8 @@
   },
   "autoload-dev": { "psr-4": { "TechThrill\\MCP\\Tests\\": "tests/" } },
   "scripts": { "test": "phpunit", "lint": "phpcs", "build": "bash build.sh" },
-  "config": { "allow-plugins": { "dealerdirect/phpcodesniffer-composer-installer": true } }
+  "config": {
+    "allow-plugins": { "dealerdirect/phpcodesniffer-composer-installer": true },
+    "platform": { "php": "7.4.33" }
+  }
 }
