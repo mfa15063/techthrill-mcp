@@ -8,7 +8,7 @@ class SettingsTest extends TestCase {
 
 	public function test_defaults_and_override(): void {
 		$defaults = new Settings( array() );
-		$this->assertSame( 1, $defaults->get( 'safe_mode' ) );
+		$this->assertSame( 0, $defaults->get( 'safe_mode' ) );
 		$this->assertSame( 120, $defaults->get( 'rate_limit' ) );
 		$this->assertSame( 60, $defaults->get( 'cli_timeout' ) );
 		$this->assertSame( '', $defaults->get( 'cli_path' ) );
@@ -21,6 +21,11 @@ class SettingsTest extends TestCase {
 		$this->assertSame( 60, $custom->get( 'cli_timeout' ) );
 		$this->assertSame( 5, $custom->all()['rate_limit'] );
 		$this->assertCount( 6, $custom->all() );
+	}
+
+	public function test_stored_safe_mode_overrides_the_default_in_both_directions(): void {
+		$this->assertSame( 1, ( new Settings( array( 'safe_mode' => 1 ) ) )->get( 'safe_mode' ) );
+		$this->assertSame( 0, ( new Settings( array( 'safe_mode' => 0 ) ) )->get( 'safe_mode' ) );
 	}
 
 	public function test_sanitize_clamps(): void {

@@ -17,7 +17,7 @@ final class Settings {
 	const OPTION = 'techthrill_mcp_settings';
 
 	const DEFAULTS = array(
-		'safe_mode'          => 1,
+		'safe_mode'          => 0,
 		'rate_limit'         => 120,
 		'cli_timeout'        => 60,
 		'cli_path'           => '',

@@ -73,8 +73,13 @@ final class Settings {
 	public function renderSafeMode(): void {
 		// Unchecked checkboxes are not submitted; this hidden 0 lets "off" be saved.
 		echo '<input type="hidden" name="' . esc_attr( $this->name( 'safe_mode' ) ) . '" value="0" />';
-		echo '<label for="ttm-safe_mode"><input type="checkbox" id="ttm-safe_mode" name="' . esc_attr( $this->name( 'safe_mode' ) ) . '" value="1"' . checked( (int) $this->value( 'safe_mode' ), 1, false ) . ' /> ' . esc_html__( 'Enable safe mode', 'techthrill-mcp' ) . '</label>';
-		$this->description( __( 'When on, blocks DROP/TRUNCATE, DELETE and UPDATE without WHERE, destructive WP-CLI commands, directory deletion, and writes to .htaccess, the uploads folder used by this plugin, and the plugin\'s own directory.', 'techthrill-mcp' ) );
+		// A real checkbox, styled as a switch by admin.css: it stays keyboard and screen-reader accessible.
+		echo '<label class="ttm-switch" for="ttm-safe_mode">';
+		echo '<input type="checkbox" role="switch" id="ttm-safe_mode" name="' . esc_attr( $this->name( 'safe_mode' ) ) . '" value="1"' . checked( (int) $this->value( 'safe_mode' ), 1, false ) . ' />';
+		echo '<span class="ttm-switch-track" aria-hidden="true"><span class="ttm-switch-knob"></span></span>';
+		echo '<span class="ttm-switch-text">' . esc_html__( 'Enable safe mode', 'techthrill-mcp' ) . '</span>';
+		echo '</label>';
+		$this->description( __( 'Off by default. When on, blocks DROP/TRUNCATE, DELETE and UPDATE without WHERE, destructive WP-CLI commands, directory deletion, and writes to .htaccess, the uploads folder used by this plugin, and the plugin\'s own directory. Recommended for production sites.', 'techthrill-mcp' ) );
 	}
 
 	public function renderRateLimit(): void {

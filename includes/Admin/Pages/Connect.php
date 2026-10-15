@@ -173,6 +173,16 @@ final class Connect {
 		$rest   = $this->restStatus();
 		$rows[] = array( __( 'REST API reachable', 'techthrill-mcp' ), $rest['state'], $rest['text'], '' );
 
+		$safe   = $this->plugin->safeMode()->isEnabled();
+		$rows[] = array(
+			__( 'Safe mode', 'techthrill-mcp' ),
+			$safe ? 'ok' : 'warning',
+			$safe
+				? __( 'On: destructive operations are refused.', 'techthrill-mcp' )
+				: __( 'Off: connected AI clients can run destructive SQL (after confirmation), delete directories and run any allowed WP-CLI command. Turn it on for production sites.', 'techthrill-mcp' ),
+			$safe ? '' : 'safe-mode',
+		);
+
 		$exec   = $host->execAvailable();
 		$rows[] = array(
 			__( 'PHP exec', 'techthrill-mcp' ),
@@ -198,6 +208,9 @@ final class Connect {
 		echo '<div class="ttm-card"><h2>' . esc_html__( 'Status', 'techthrill-mcp' ) . '</h2><ul class="ttm-status-list">';
 		foreach ( $rows as $row ) {
 			echo '<li class="ttm-status-row ttm-' . esc_attr( $row[1] ) . '"><span class="ttm-dot" aria-hidden="true"></span><strong>' . esc_html( $row[0] ) . '</strong> <span>' . esc_html( $row[2] ) . '</span>';
+			if ( 'safe-mode' === $row[3] ) {
+				echo ' <a class="button button-small" href="' . esc_url( Flash::tabUrl( 'settings' ) ) . '">' . esc_html__( 'Open Settings', 'techthrill-mcp' ) . '</a>';
+			}
 			if ( 'download' === $row[3] ) {
 				echo ' <form class="ttm-inline-form" method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
 				echo '<input type="hidden" name="action" value="techthrill_mcp_install_phar" />';
