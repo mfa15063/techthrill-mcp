@@ -102,6 +102,7 @@ bearer_token_env_var = "TECHTHRILL_MCP_<SLUG>_TOKEN"
 | `file_edit` | `files:write` | Replace an exact string in a file. |
 | `file_copy` | `files:write` | Copy a file byte for byte (images and other binary files work), or a directory with `recursive`. |
 | `file_delete` | `files:write` | Delete a file, or a directory with `recursive`. |
+| `media_upload` | `files:write` | Upload an image or other allowed file to the Media Library from base64 data (name, content_base64, optional title, alt_text, caption, description, post_id). Works without WP-CLI. WordPress decides the allowed file types; limit 20 MB. |
 
 ## Safety
 
@@ -194,7 +195,7 @@ Run this once against a real WordPress site before a release. Nothing here has b
 4. Create a token with each preset (Full access, Read only, Files only). Confirm the one-time token box shows once and is gone after a page reload.
 5. Copy the agent prompt into Claude Code, approve the link it shows with only Read only ticked, and confirm the agent reports `site_info`. Paste the same prompt into a normal browser chat and confirm it only replies that it needs an agent or a connector. Then add the endpoint with `claude mcp add --transport http NAME URL`, log in with `/mcp`, and confirm the consent screen shows read-only scopes ticked and the connection appears on the Tokens tab as `OAuth: Claude Code`. Then, under Advanced, press Quick connect (Read only), confirm a token named "Quick connect (Read only) <date>" appears on the Tokens tab with only `db:read` and `files:read`, then run the Claude Code command from the Connect tab on your machine, run `/mcp` in Claude Code, and confirm the server shows as connected. Repeat the setup with the Codex snippet and confirm Codex lists the server.
 6. Call `site_info` and confirm every key: site and home URL, WordPress, PHP and MySQL versions, `ABSPATH`, `WP_CONTENT_DIR`, table prefix, multisite flag, active theme, active plugins, locale, timezone, `safe_mode`, `host_capabilities` (including `php_binary`) and the token's scopes.
-7. With a Read-only token, call `tools/list` and confirm it shows no `db_execute`, `file_write`, `file_edit`, `file_copy`, `file_delete` or `wp_cli`.
+7. With a Read-only token, call `tools/list` and confirm it shows no `db_execute`, `file_write`, `file_edit`, `file_copy`, `file_delete`, `media_upload` or `wp_cli`.
 8. Call `wp_cli` with `core version`, then with `plugin list --format=json`. On a Windows host that only has `wp.bat`, confirm the batch-file refusal message, click the Connect page's Download WP-CLI button, and retry.
 9. On a Linux host without `wp` on `PATH` (php-fpm or Apache), click Download WP-CLI, confirm the status card's WP-CLI row shows the phar run via a CLI php (`via /usr/bin/php wp-cli.phar` or similar, not `php-fpm`), then call `wp_cli` with `core version`.
 10. Call `wp_cli` with `eval "1;"` and with `db query "SELECT 1"` and confirm both are refused as always blocked ("Refused: the command ... is not available through TechThrill MCP."). Call it with `db reset --yes` and confirm safe mode refuses it.

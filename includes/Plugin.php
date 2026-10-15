@@ -35,11 +35,13 @@ use TechThrill\MCP\Tools\FileList;
 use TechThrill\MCP\Tools\FileRead;
 use TechThrill\MCP\Tools\FileSearch;
 use TechThrill\MCP\Tools\FileWrite;
+use TechThrill\MCP\Tools\MediaUpload;
 use TechThrill\MCP\Tools\ProcOpenRunner;
 use TechThrill\MCP\Tools\SiteInfo;
 use TechThrill\MCP\Tools\ToolRegistry;
 use TechThrill\MCP\Tools\ToolResult;
 use TechThrill\MCP\Tools\WpCli;
+use TechThrill\MCP\Tools\WpMediaLibrary;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -144,6 +146,7 @@ final class Plugin {
 		foreach ( array( FileList::class, FileRead::class, FileSearch::class, FileWrite::class, FileEdit::class, FileCopy::class, FileDelete::class ) as $file_tool ) {
 			$registry->register( new $file_tool( $this->path_jail, $this->safe_mode ) );
 		}
+		$registry->register( new MediaUpload( new WpMediaLibrary() ) );
 		$registry->register(
 			new WpCli(
 				new CommandParser(),

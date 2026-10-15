@@ -4,7 +4,7 @@ Tags: mcp, claude, codex, ai, wp-cli
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.2.3
+Stable tag: 1.3.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -18,6 +18,7 @@ TechThrill MCP adds a Model Context Protocol (MCP) endpoint to your site. AI cli
 * `wp_cli` - run a WP-CLI command (needs the `wp-cli` scope).
 * `db_query`, `db_execute`, `db_schema` - read, change and inspect the database (`db:read`, `db:write`).
 * `file_list`, `file_read`, `file_search`, `file_write`, `file_edit`, `file_copy`, `file_delete` - work with files under the WordPress root (`files:read`, `files:write`).
+* `media_upload` - add an image or other allowed file to the Media Library from base64 data, without WP-CLI (`files:write`).
 
 Nothing is exposed until an administrator connects a client. The easiest way is the Connect page's "Connect with one paste" card: paste the endpoint URL into Claude, ChatGPT (developer mode), Claude Code or Codex and approve one consent screen; no token is copied. You can also create a bearer token (shown once) with only the scopes you choose, and the Connect page shows copy-and-paste setup commands for Claude Code, Codex and generic MCP clients.
 
@@ -76,6 +77,9 @@ Long WP-CLI runs may be cut short by the host's PHP `max_execution_time` or by a
 On multisite, deleting the plugin removes only the current site's tables.
 
 == Changelog ==
+
+= 1.3.0 =
+* New `media_upload` tool: uploads an image or other allowed file to the Media Library from base64 data (name, content, optional title, alt text, caption, description and post to attach to). It uses WordPress's own upload checks and thumbnail generation, so it works on hosts where WP-CLI is blocked. Limit 20 MB.
 
 = 1.2.3 =
 * The default WP-CLI timeout is now 180 seconds (was 60). Sites that already saved their Settings keep their stored value.

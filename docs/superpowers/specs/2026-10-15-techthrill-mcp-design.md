@@ -343,6 +343,17 @@ them. Leading `/` or `./` is tolerated and normalised.
   `skipped_links` for a directory).
 - `file_delete` (`files:write`): `path`, `recursive` (default false). Directory
   deletion requires safe mode off and `recursive: true`.
+- `media_upload` (`files:write`, added in 1.3.0): `name` (file name with
+  extension, directories dropped), `content_base64` (a `data:` prefix and line
+  breaks are tolerated), optional `title`, `alt_text`, `caption`, `description`
+  and `post_id`. Added because `file_write` carries only a JSON string and
+  `file_copy` only copies files already on the site, so on hosts that block
+  WP-CLI (where `wp media import` is unavailable) an agent had no way to add an
+  image. The tool calls `wp_upload_bits` (which applies WordPress's allowed
+  file-type list, so `.php` and, by default, `.svg` are refused),
+  `wp_insert_attachment` and `wp_generate_attachment_metadata`, exactly like an
+  admin upload. The user behind the token must have `upload_files`. Decoded
+  limit 20 MB. Returns `{ id, url, file, mime, bytes }`.
 
 ### 4.7 Protected paths
 
