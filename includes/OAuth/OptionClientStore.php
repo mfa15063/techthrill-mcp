@@ -46,7 +46,7 @@ final class OptionClientStore implements ClientStore {
 	}
 
 	public function save( array $client ): void {
-		$all                         = $this->read();
+		$all                                  = $this->read();
 		$all[ (string) $client['client_id'] ] = $client;
 		$this->write( $all );
 	}
