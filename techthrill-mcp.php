@@ -1,11 +1,13 @@
 <?php
 /**
  * Plugin Name:       TechThrill MCP
+ * Plugin URI:        https://github.com/mfa15063/techthrill-mcp
  * Description:       Turns your WordPress site into an MCP server so Claude Code or Codex can connect to it.
  * Version:           1.0.1
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            TechThrill
+ * Author URI:        https://github.com/mfa15063
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       techthrill-mcp
