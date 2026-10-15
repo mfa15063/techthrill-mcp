@@ -211,3 +211,28 @@
 		background: HighlightText;
 	}
 }
+
+.ttm-advanced {
+	margin: 16px 0;
+}
+
+.ttm-advanced > summary {
+	cursor: pointer;
+	font-weight: 600;
+	padding: 8px 0;
+}
+
+.ttm-oneclick .ttm-copy-row {
+	margin: 12px 0;
+}
+
+.ttm-warning {
+	background: #fcf9e8;
+	border-left: 4px solid #dba617;
+	padding: 8px 12px;
+}
+
+.ttm-list {
+	list-style: disc;
+	margin-left: 20px;
+}

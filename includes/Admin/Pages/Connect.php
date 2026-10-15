@@ -12,6 +12,8 @@ use TechThrill\MCP\Admin\PharInstaller;
 use TechThrill\MCP\Admin\QuickConnect;
 use TechThrill\MCP\Admin\Snippets;
 use TechThrill\MCP\Auth\Scopes;
+use TechThrill\MCP\OAuth\Availability;
+use TechThrill\MCP\OAuth\Metadata;
 use TechThrill\MCP\Plugin;
 
 defined( 'ABSPATH' ) || exit;
@@ -22,6 +24,8 @@ defined( 'ABSPATH' ) || exit;
 final class Connect {
 
 	const REST_CHECK_TRANSIENT = 'techthrill_mcp_rest_check';
+
+	const WELL_KNOWN_TRANSIENT = 'techthrill_mcp_well_known_check';
 
 	private Plugin $plugin;
 
@@ -47,10 +51,19 @@ final class Connect {
 	 * Prints the tab.
 	 */
 	public function render(): void {
+		$problems = $this->plugin->oauth()->problems();
+
+		$this->renderOneClick( $problems );
+		$this->renderStatusCard();
+
+		// The bearer-token flow stays available as an Advanced fallback. It opens by itself right after a token
+		// is created (the one-time token box lives inside it) or when the one-paste flow cannot work on this site.
+		$open = null !== $this->created || ! $this->plugin->oauth()->isAvailable();
+		echo '<details class="ttm-advanced"' . ( $open ? ' open' : '' ) . '><summary>' . esc_html__( 'Advanced: connect with a bearer token', 'techthrill-mcp' ) . '</summary>';
 		$this->renderNewToken();
 		$this->renderQuickConnect();
-		$this->renderStatusCard();
 		$this->renderForm();
+		echo '</details>';
 	}
 
 	/**
@@ -183,6 +196,111 @@ final class Connect {
 		return $parsed->format( 'Y-m-d H:i:s' );
 	}
 
+	/**
+	 * Top card: connect by pasting only the endpoint URL; the client logs in through the consent screen.
+	 *
+	 * @param string[] $problems Availability problem codes.
+	 */
+	private function renderOneClick( array $problems ): void {
+		$url  = $this->plugin->endpointUrl();
+		$slug = Snippets::slug( html_entity_decode( (string) get_bloginfo( 'name' ), ENT_QUOTES, 'UTF-8' ) );
+
+		echo '<div class="ttm-card ttm-oneclick"><h2>' . esc_html__( 'Connect with one paste', 'techthrill-mcp' ) . '</h2>';
+
+		if ( in_array( Availability::PERMALINKS, $problems, true ) || in_array( Availability::HTTPS, $problems, true ) ) {
+			echo '<p>' . esc_html__( 'The one-paste connection is not available on this site yet:', 'techthrill-mcp' ) . '</p><ul class="ttm-list">';
+			if ( in_array( Availability::PERMALINKS, $problems, true ) ) {
+				echo '<li>' . esc_html__( 'Turn on pretty permalinks under Settings > Permalinks (choose anything except Plain).', 'techthrill-mcp' ) . '</li>';
+			}
+			if ( in_array( Availability::HTTPS, $problems, true ) ) {
+				echo '<li>' . esc_html__( 'The site address must start with https://.', 'techthrill-mcp' ) . '</li>';
+			}
+			echo '</ul><p>' . esc_html__( 'Until then, use the bearer-token section below.', 'techthrill-mcp' ) . '</p></div>';
+			return;
+		}
+
+		echo '<p>' . esc_html__( 'Paste only this address into your AI app. You then approve the connection on this site. Nothing secret is copied, and read-only access is pre-selected.', 'techthrill-mcp' ) . '</p>';
+		echo '<p class="ttm-copy-row"><code id="ttm-endpoint" class="ttm-token">' . esc_html( $url ) . '</code> ';
+		$this->copyButton( 'ttm-endpoint' );
+		echo '</p>';
+
+		if ( in_array( Availability::LOCAL, $problems, true ) ) {
+			echo '<p class="ttm-warning">' . esc_html__( 'This looks like a local or private site. Claude on the web and ChatGPT cannot reach it. Use Claude Code or Codex on this same computer.', 'techthrill-mcp' ) . '</p>';
+		}
+
+		$claude_code = Snippets::claudeCodeOAuth( $slug, $url );
+		$codex       = Snippets::codexOAuth( $slug, $url );
+		$tabs        = array(
+			'claude'      => __( 'Claude', 'techthrill-mcp' ),
+			'chatgpt'     => __( 'ChatGPT', 'techthrill-mcp' ),
+			'claude-code' => __( 'Claude Code', 'techthrill-mcp' ),
+			'codex'       => __( 'Codex', 'techthrill-mcp' ),
+			'cursor'      => __( 'Cursor', 'techthrill-mcp' ),
+			'vscode'      => __( 'VS Code', 'techthrill-mcp' ),
+		);
+
+		echo '<div class="ttm-snippet-tabs" role="tablist">';
+		$first = true;
+		foreach ( $tabs as $key => $label ) {
+			echo '<button type="button" class="button' . ( $first ? ' button-primary' : '' ) . '" data-ttm-group="connect" data-ttm-tab="' . esc_attr( $key ) . '">' . esc_html( $label ) . '</button> ';
+			$first = false;
+		}
+		echo '</div>';
+
+		// Each step is plain text, a copyable command (id, text) or an install link (href, label).
+		$panels = array(
+			'claude'      => array(
+				array( 'text' => __( 'Open Claude (claude.ai or the desktop app) and go to Customize > Connectors > Add custom connector.', 'techthrill-mcp' ) ),
+				array( 'text' => __( 'Paste the address above and add it, then press Connect.', 'techthrill-mcp' ) ),
+				array( 'text' => __( 'Log in to this site if asked, choose the permissions and approve.', 'techthrill-mcp' ) ),
+				array( 'text' => __( 'In a chat, open the + menu and turn the connector on for that chat.', 'techthrill-mcp' ) ),
+			),
+			'chatgpt'     => array(
+				array( 'text' => __( 'In ChatGPT, turn on Developer mode, then add a custom MCP connector.', 'techthrill-mcp' ) ),
+				array( 'text' => __( 'Paste the address above and choose OAuth if asked.', 'techthrill-mcp' ) ),
+				array( 'text' => __( 'Log in to this site if asked, choose the permissions and approve.', 'techthrill-mcp' ) ),
+			),
+			'claude-code' => array(
+				array( 'text' => __( 'Run this command in your terminal:', 'techthrill-mcp' ) ),
+				array( 'code' => array( 'ttm-cmd-claude-code', $claude_code ) ),
+				array( 'text' => __( 'In Claude Code run /mcp (or claude mcp login) and approve in the browser.', 'techthrill-mcp' ) ),
+			),
+			'codex'       => array(
+				array( 'text' => __( 'Run this command in your terminal:', 'techthrill-mcp' ) ),
+				array( 'code' => array( 'ttm-cmd-codex', $codex ) ),
+				array( 'text' => __( 'Then run codex mcp login and approve in the browser.', 'techthrill-mcp' ) ),
+			),
+			'cursor'      => array(
+				array( 'link' => array( Snippets::cursorLink( $slug, $url ), __( 'Add to Cursor', 'techthrill-mcp' ) ) ),
+				array( 'text' => __( 'Cursor opens with the server filled in. Approve the login when it asks.', 'techthrill-mcp' ) ),
+			),
+			'vscode'      => array(
+				array( 'link' => array( Snippets::vscodeLink( $slug, $url ), __( 'Add to VS Code', 'techthrill-mcp' ) ) ),
+				array( 'text' => __( 'VS Code opens with the server filled in. Approve the login when it asks.', 'techthrill-mcp' ) ),
+			),
+		);
+		$first  = true;
+		foreach ( $panels as $key => $steps ) {
+			echo '<div class="ttm-snippet' . ( $first ? '' : ' ttm-hidden' ) . '" data-ttm-group="connect" data-ttm-panel="' . esc_attr( $key ) . '"><ol class="ttm-quick-steps">';
+			foreach ( $steps as $step ) {
+				if ( isset( $step['code'] ) ) {
+					// A command sits between two numbered steps, so the list is closed and reopened around it.
+					echo '</ol><pre><code id="' . esc_attr( $step['code'][0] ) . '">' . esc_html( $step['code'][1] ) . '</code></pre>';
+					$this->copyButton( $step['code'][0] );
+					echo '<ol class="ttm-quick-steps" start="2">';
+				} elseif ( isset( $step['link'] ) ) {
+					echo '<li><a class="button button-primary" href="' . esc_url( $step['link'][0], array( 'cursor', 'vscode' ) ) . '">' . esc_html( $step['link'][1] ) . '</a></li>';
+				} else {
+					echo '<li>' . esc_html( $step['text'] ) . '</li>';
+				}
+			}
+			echo '</ol></div>';
+			$first = false;
+		}
+
+		echo '<p class="description">' . esc_html__( 'You can see and revoke every connection on the Tokens tab.', 'techthrill-mcp' ) . '</p></div>';
+	}
+
 	private function renderStatusCard(): void {
 		$host   = $this->plugin->hostCapabilities();
 		$rows   = array();
@@ -207,6 +325,11 @@ final class Connect {
 				: __( 'Off: connected AI clients can run destructive SQL (after confirmation), delete directories and run any allowed WP-CLI command. Turn it on for production sites.', 'techthrill-mcp' ),
 			$safe ? '' : 'safe-mode',
 		);
+
+		if ( $this->plugin->oauth()->isAvailable() ) {
+			$well_known = $this->wellKnownStatus();
+			$rows[]     = array( __( 'One-paste discovery', 'techthrill-mcp' ), $well_known['state'], $well_known['text'], '' );
+		}
 
 		$exec   = $host->execAvailable();
 		$rows[] = array(
@@ -245,6 +368,47 @@ final class Connect {
 			echo '</li>';
 		}
 		echo '</ul></div>';
+	}
+
+	/**
+	 * Self-request to the root /.well-known document. Cached for an hour.
+	 *
+	 * @return array{state:string,text:string}
+	 */
+	private function wellKnownStatus(): array {
+		$cached = get_transient( self::WELL_KNOWN_TRANSIENT );
+		if ( is_array( $cached ) && isset( $cached['state'], $cached['text'] ) ) {
+			return $cached;
+		}
+
+		$issuer = $this->plugin->oauth()->metadata()->issuer();
+		$parts  = wp_parse_url( $issuer );
+		$root   = ( $parts['scheme'] ?? 'https' ) . '://' . ( $parts['host'] ?? '' ) . ( isset( $parts['port'] ) ? ':' . $parts['port'] : '' );
+
+		$response = wp_remote_get(
+			$root . Metadata::wellKnownPath( 'oauth-authorization-server', $issuer ),
+			array(
+				'timeout'   => 5,
+				'sslverify' => (bool) apply_filters( 'https_local_ssl_verify', false ), // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Core WordPress hook.
+			)
+		);
+
+		$body = is_wp_error( $response ) ? null : json_decode( (string) wp_remote_retrieve_body( $response ), true );
+		if ( is_array( $body ) && isset( $body['issuer'] ) && 200 === (int) wp_remote_retrieve_response_code( $response ) ) {
+			$result = array(
+				'state' => 'ok',
+				'text'  => __( 'The login discovery document is reachable.', 'techthrill-mcp' ),
+			);
+		} else {
+			$result = array(
+				'state' => 'warning',
+				'text'  => __( 'The /.well-known document is not reachable (a server rule or security plugin may block it). Most clients still work through the 401 link; if one does not, use the bearer-token section.', 'techthrill-mcp' ),
+			);
+		}
+
+		set_transient( self::WELL_KNOWN_TRANSIENT, $result, HOUR_IN_SECONDS );
+
+		return $result;
 	}
 
 	/**

@@ -69,6 +69,58 @@ final class Snippets {
 	}
 
 	/**
+	 * `claude mcp add` command for the OAuth flow: no token, no header.
+	 *
+	 * @param string $slug Server slug.
+	 * @param string $url  Endpoint URL.
+	 */
+	public static function claudeCodeOAuth( string $slug, string $url ): string {
+		return 'claude mcp add --transport http ' . $slug . ' ' . $url;
+	}
+
+	/**
+	 * `codex mcp add` command for the OAuth flow: no token.
+	 *
+	 * @param string $slug Server slug.
+	 * @param string $url  Endpoint URL.
+	 */
+	public static function codexOAuth( string $slug, string $url ): string {
+		return 'codex mcp add ' . $slug . ' --url ' . $url;
+	}
+
+	/**
+	 * Cursor install deep link. Carries the endpoint URL only, never a secret.
+	 *
+	 * @param string $name Server name.
+	 * @param string $url  Endpoint URL.
+	 */
+	public static function cursorLink( string $name, string $url ): string {
+		$config = (string) wp_json_encode( array( 'url' => $url ), JSON_UNESCAPED_SLASHES );
+
+		// Cursor expects the JSON config base64 encoded; not obfuscation.
+		return 'cursor://anysphere.cursor-deeplink/mcp/install?name=' . rawurlencode( $name ) . '&config=' . rawurlencode( base64_encode( $config ) ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode
+	}
+
+	/**
+	 * VS Code install deep link. Carries the endpoint URL only, never a secret.
+	 *
+	 * @param string $name Server name.
+	 * @param string $url  Endpoint URL.
+	 */
+	public static function vscodeLink( string $name, string $url ): string {
+		$config = (string) wp_json_encode(
+			array(
+				'name' => $name,
+				'type' => 'http',
+				'url'  => $url,
+			),
+			JSON_UNESCAPED_SLASHES
+		);
+
+		return 'vscode:mcp/install?' . rawurlencode( $config );
+	}
+
+	/**
 	 * Generic `mcpServers` JSON configuration.
 	 *
 	 * @param string $slug  Server slug.

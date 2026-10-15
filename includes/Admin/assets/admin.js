@@ -45,12 +45,18 @@
 		} );
 	}
 
-	function showTab( key ) {
+	// Tabs and panels may carry data-ttm-group so several tab sets can share a page.
+	function showTab( key, group ) {
+		group = group || '';
 		document.querySelectorAll( '[data-ttm-panel]' ).forEach( function ( panel ) {
-			panel.classList.toggle( 'ttm-hidden', panel.getAttribute( 'data-ttm-panel' ) !== key );
+			if ( ( panel.getAttribute( 'data-ttm-group' ) || '' ) === group ) {
+				panel.classList.toggle( 'ttm-hidden', panel.getAttribute( 'data-ttm-panel' ) !== key );
+			}
 		} );
 		document.querySelectorAll( '[data-ttm-tab]' ).forEach( function ( button ) {
-			button.classList.toggle( 'button-primary', button.getAttribute( 'data-ttm-tab' ) === key );
+			if ( ( button.getAttribute( 'data-ttm-group' ) || '' ) === group ) {
+				button.classList.toggle( 'button-primary', button.getAttribute( 'data-ttm-tab' ) === key );
+			}
 		} );
 	}
 
@@ -79,7 +85,7 @@
 		} else if ( el.hasAttribute( 'data-ttm-preset' ) ) {
 			applyPreset( el.getAttribute( 'data-ttm-preset' ) );
 		} else if ( el.hasAttribute( 'data-ttm-tab' ) ) {
-			showTab( el.getAttribute( 'data-ttm-tab' ) );
+			showTab( el.getAttribute( 'data-ttm-tab' ), el.getAttribute( 'data-ttm-group' ) );
 		}
 	} );
 
