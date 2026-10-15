@@ -16,6 +16,18 @@ final class TokenManager {
 
 	const PREFIX = 'ttm_';
 
+	const REFRESH_PREFIX = 'ttr_';
+
+	/**
+	 * Lifetime of an OAuth access token, in seconds.
+	 */
+	const ACCESS_TTL = 3600;
+
+	/**
+	 * Lifetime of an OAuth refresh token, in seconds (30 days).
+	 */
+	const REFRESH_TTL = 2592000;
+
 	const LENGTH = 40;
 
 	const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -87,6 +99,110 @@ final class TokenManager {
 		return array(
 			'id'    => $id,
 			'token' => $plain,
+		);
+	}
+
+	/**
+	 * Creates an OAuth grant: a one-hour access token (a normal bearer token) and a 30-day single-use refresh token.
+	 *
+	 * @param string   $clientId   OAuth client the grant belongs to.
+	 * @param string   $clientName Client name shown on the Tokens page.
+	 * @param string[] $scopes     Granted scopes.
+	 * @param int      $user_id    Administrator who approved the grant.
+	 * @return array{id:int,access_token:string,refresh_token:string,expires_in:int,scopes:string[]}
+	 * @throws \RuntimeException When the grant cannot be stored.
+	 */
+	public function createOAuth( string $clientId, string $clientName, array $scopes, int $user_id ): array {
+		$access  = self::PREFIX . self::randomString( self::LENGTH );
+		$refresh = self::REFRESH_PREFIX . self::randomString( self::LENGTH );
+		$scopes  = Scopes::sanitize( $scopes );
+		$now     = $this->now();
+
+		$id = $this->repo->insert(
+			array(
+				'name'               => substr( 'OAuth: ' . trim( $clientName ), 0, 100 ),
+				'lookup'             => self::lookup( $access ),
+				'hash'               => self::hash( $access ),
+				'scopes'             => implode( ',', $scopes ),
+				'user_id'            => $user_id,
+				'created_at'         => gmdate( 'Y-m-d H:i:s', $now ),
+				'expires_at'         => gmdate( 'Y-m-d H:i:s', $now + self::ACCESS_TTL ),
+				'last_used_at'       => null,
+				'revoked_at'         => null,
+				'kind'               => 'oauth',
+				'client_id'          => $clientId,
+				'refresh_hash'       => self::hash( $refresh ),
+				'refresh_expires_at' => gmdate( 'Y-m-d H:i:s', $now + self::REFRESH_TTL ),
+			)
+		);
+
+		if ( $id <= 0 ) {
+			throw new \RuntimeException( 'Could not store the token.' );
+		}
+
+		return array(
+			'id'            => $id,
+			'access_token'  => $access,
+			'refresh_token' => $refresh,
+			'expires_in'    => self::ACCESS_TTL,
+			'scopes'        => $scopes,
+		);
+	}
+
+	/**
+	 * Exchanges a refresh token for a new pair, replacing the old pair on the same row.
+	 *
+	 * Returns null when the token is unknown, malformed, expired, revoked, belongs to another client, or
+	 * when narrowing the scopes would leave none. A refresh token works once.
+	 *
+	 * @param string        $refreshToken Plain refresh token.
+	 * @param string        $clientId     Client presenting it.
+	 * @param string[]|null $narrowScopes Optional scopes to keep; can only remove scopes.
+	 * @return array{id:int,access_token:string,refresh_token:string,expires_in:int,scopes:string[]}|null
+	 */
+	public function refreshOAuth( string $refreshToken, string $clientId, ?array $narrowScopes = null ): ?array {
+		if ( 1 !== preg_match( '/^ttr_[A-Za-z0-9]{40}$/D', $refreshToken ) ) {
+			return null;
+		}
+
+		$row = $this->repo->findByRefreshHash( self::hash( $refreshToken ) );
+		if ( null === $row || 'oauth' !== ( $row['kind'] ?? null ) || ! hash_equals( (string) ( $row['client_id'] ?? '' ), $clientId ) ) {
+			return null;
+		}
+		if ( null !== $row['revoked_at'] || $this->isExpired( $row['refresh_expires_at'] ?? null ) ) {
+			return null;
+		}
+
+		$scopes = Scopes::sanitize( explode( ',', (string) $row['scopes'] ) );
+		if ( null !== $narrowScopes ) {
+			$scopes = array_values( array_intersect( $scopes, Scopes::sanitize( $narrowScopes ) ) );
+		}
+		if ( ! $scopes ) {
+			return null;
+		}
+
+		$access  = self::PREFIX . self::randomString( self::LENGTH );
+		$refresh = self::REFRESH_PREFIX . self::randomString( self::LENGTH );
+		$now     = $this->now();
+
+		$this->repo->update(
+			(int) $row['id'],
+			array(
+				'lookup'             => self::lookup( $access ),
+				'hash'               => self::hash( $access ),
+				'scopes'             => implode( ',', $scopes ),
+				'expires_at'         => gmdate( 'Y-m-d H:i:s', $now + self::ACCESS_TTL ),
+				'refresh_hash'       => self::hash( $refresh ),
+				'refresh_expires_at' => gmdate( 'Y-m-d H:i:s', $now + self::REFRESH_TTL ),
+			)
+		);
+
+		return array(
+			'id'            => (int) $row['id'],
+			'access_token'  => $access,
+			'refresh_token' => $refresh,
+			'expires_in'    => self::ACCESS_TTL,
+			'scopes'        => $scopes,
 		);
 	}
 

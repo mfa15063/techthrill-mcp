@@ -11,7 +11,8 @@ defined( 'ABSPATH' ) || exit;
 
 /**
  * Persists token rows. Row keys: id, name, lookup, hash, scopes, user_id, created_at,
- * expires_at, last_used_at, revoked_at. Datetimes are `Y-m-d H:i:s` strings in UTC.
+ * expires_at, last_used_at, revoked_at and, for OAuth grants, kind, client_id, refresh_hash and
+ * refresh_expires_at (null or absent on bearer tokens). Datetimes are `Y-m-d H:i:s` strings in UTC.
  */
 interface TokenRepository {
 
@@ -29,6 +30,13 @@ interface TokenRepository {
 	 * @return array[]
 	 */
 	public function findByLookup( string $lookup ): array;
+
+	/**
+	 * Finds the row whose current refresh token has the given SHA-256 hash.
+	 *
+	 * @param string $hash SHA-256 hex digest of a plain refresh token.
+	 */
+	public function findByRefreshHash( string $hash ): ?array;
 
 	/**
 	 * Finds a row by id.

@@ -71,6 +71,23 @@ final class WpTokenRepository implements TokenRepository {
 	}
 
 	/**
+	 * Finds the row whose current refresh token has the given SHA-256 hash.
+	 *
+	 * @param string $hash SHA-256 hex digest of a plain refresh token.
+	 */
+	public function findByRefreshHash( string $hash ): ?array {
+		$row = $this->db->get_row(
+			$this->db->prepare(
+				"SELECT * FROM {$this->table} WHERE refresh_hash = %s LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				$hash
+			),
+			ARRAY_A
+		);
+
+		return is_array( $row ) ? $this->normalize( $row ) : null;
+	}
+
+	/**
 	 * Finds a row by id.
 	 *
 	 * @param int $id Row id.

@@ -41,8 +41,13 @@ final class Activator {
 	expires_at datetime NULL DEFAULT NULL,
 	last_used_at datetime NULL DEFAULT NULL,
 	revoked_at datetime NULL DEFAULT NULL,
+	kind varchar(10) NULL DEFAULT NULL,
+	client_id varchar(255) NULL DEFAULT NULL,
+	refresh_hash char(64) NULL DEFAULT NULL,
+	refresh_expires_at datetime NULL DEFAULT NULL,
 	PRIMARY KEY  (id),
-	KEY lookup (lookup)
+	KEY lookup (lookup),
+	KEY refresh_hash (refresh_hash)
 ) {$charset};";
 
 		$log_sql = "CREATE TABLE {$log} (

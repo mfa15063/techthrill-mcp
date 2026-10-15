@@ -160,4 +160,96 @@ class TokenManagerTest extends TestCase {
 		$this->expectExceptionMessage( 'Could not store the token.' );
 		$this->manager( $repo )->create( 'Laptop', array( 'db:read' ), 7, null );
 	}
+
+	public function test_create_oauth_returns_two_tokens_and_stores_only_hashes(): void {
+		$repo   = new InMemoryTokenRepository();
+		$result = $this->manager( $repo )->createOAuth( 'ttc_client1', 'Claude', array( 'db:read', 'files:read' ), 5 );
+
+		$this->assertMatchesRegularExpression( '/^ttm_[A-Za-z0-9]{40}$/', $result['access_token'] );
+		$this->assertMatchesRegularExpression( '/^ttr_[A-Za-z0-9]{40}$/', $result['refresh_token'] );
+		$this->assertSame( 3600, $result['expires_in'] );
+		$this->assertSame( array( 'db:read', 'files:read' ), $result['scopes'] );
+
+		$row = $repo->find( $result['id'] );
+		$this->assertSame( 'oauth', $row['kind'] );
+		$this->assertSame( 'ttc_client1', $row['client_id'] );
+		$this->assertSame( 'OAuth: Claude', $row['name'] );
+		$this->assertSame( 5, $row['user_id'] );
+		$this->assertSame( TokenManager::hash( $result['refresh_token'] ), $row['refresh_hash'] );
+		$this->assertSame( gmdate( 'Y-m-d H:i:s', $this->now + 3600 ), $row['expires_at'] );
+		$this->assertSame( gmdate( 'Y-m-d H:i:s', $this->now + 2592000 ), $row['refresh_expires_at'] );
+		$json = json_encode( $row );
+		$this->assertStringNotContainsString( $result['access_token'], $json );
+		$this->assertStringNotContainsString( $result['refresh_token'], $json );
+	}
+
+	public function test_access_token_verifies_like_any_bearer_token_until_it_expires(): void {
+		$mgr    = $this->manager( new InMemoryTokenRepository() );
+		$result = $mgr->createOAuth( 'ttc_client1', 'Claude', array( 'db:read' ), 5 );
+
+		$this->assertNotNull( $mgr->verify( $result['access_token'] ) );
+		$this->now += 3601;
+		$this->assertNull( $mgr->verify( $result['access_token'] ) );
+	}
+
+	public function test_refresh_rotates_both_tokens_in_place(): void {
+		$repo = new InMemoryTokenRepository();
+		$mgr  = $this->manager( $repo );
+		$old  = $mgr->createOAuth( 'ttc_client1', 'Claude', array( 'db:read', 'files:read' ), 5 );
+
+		$this->now += 4000;
+		$new = $mgr->refreshOAuth( $old['refresh_token'], 'ttc_client1' );
+
+		$this->assertNotNull( $new );
+		$this->assertSame( $old['id'], $new['id'] );
+		$this->assertNotSame( $old['access_token'], $new['access_token'] );
+		$this->assertNotSame( $old['refresh_token'], $new['refresh_token'] );
+		$this->assertNull( $mgr->verify( $old['access_token'] ) );
+		$this->assertNull( $mgr->refreshOAuth( $old['refresh_token'], 'ttc_client1' ), 'A refresh token works once.' );
+		$this->assertNotNull( $mgr->verify( $new['access_token'] ) );
+		$this->assertCount( 1, $repo->all() );
+		$this->assertSame( gmdate( 'Y-m-d H:i:s', $this->now + 3600 ), $repo->find( $old['id'] )['expires_at'] );
+	}
+
+	public function test_refresh_with_wrong_client_or_unknown_token_returns_null(): void {
+		$mgr = $this->manager( new InMemoryTokenRepository() );
+		$old = $mgr->createOAuth( 'ttc_client1', 'Claude', array( 'db:read' ), 5 );
+
+		$this->assertNull( $mgr->refreshOAuth( $old['refresh_token'], 'ttc_other' ) );
+		$this->assertNull( $mgr->refreshOAuth( 'ttr_' . str_repeat( 'x', 40 ), 'ttc_client1' ) );
+		$this->assertNull( $mgr->refreshOAuth( 'garbage', 'ttc_client1' ) );
+		$this->assertNotNull( $mgr->refreshOAuth( $old['refresh_token'], 'ttc_client1' ), 'A wrong-client attempt does not burn the token.' );
+	}
+
+	public function test_refresh_after_expiry_or_revocation_returns_null(): void {
+		$repo = new InMemoryTokenRepository();
+		$mgr  = $this->manager( $repo );
+		$a    = $mgr->createOAuth( 'ttc_client1', 'Claude', array( 'db:read' ), 5 );
+		$b    = $mgr->createOAuth( 'ttc_client1', 'Claude', array( 'db:read' ), 5 );
+
+		$mgr->revoke( $b['id'] );
+		$this->assertNull( $mgr->refreshOAuth( $b['refresh_token'], 'ttc_client1' ) );
+
+		$this->now += 2592001;
+		$this->assertNull( $mgr->refreshOAuth( $a['refresh_token'], 'ttc_client1' ) );
+	}
+
+	public function test_refresh_can_only_narrow_scopes(): void {
+		$mgr = $this->manager( new InMemoryTokenRepository() );
+		$old = $mgr->createOAuth( 'ttc_client1', 'Claude', array( 'db:read', 'files:read' ), 5 );
+
+		$narrow = $mgr->refreshOAuth( $old['refresh_token'], 'ttc_client1', array( 'db:read', 'db:write' ) );
+		$this->assertSame( array( 'db:read' ), $narrow['scopes'] );
+
+		$none = $mgr->refreshOAuth( $narrow['refresh_token'], 'ttc_client1', array( 'wp-cli' ) );
+		$this->assertNull( $none, 'An empty intersection is refused.' );
+	}
+
+	public function test_bearer_rows_are_not_refreshable_and_are_unaffected(): void {
+		$mgr    = $this->manager( new InMemoryTokenRepository() );
+		$bearer = $mgr->create( 'CI', array( 'wp-cli' ), 3, null );
+
+		$this->assertNotNull( $mgr->verify( $bearer['token'] ) );
+		$this->assertNull( $mgr->refreshOAuth( 'ttr_' . str_repeat( 'a', 40 ), '' ) );
+	}
 }

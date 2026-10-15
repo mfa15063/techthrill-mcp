@@ -38,6 +38,16 @@ class InMemoryTokenRepository implements TokenRepository {
 		);
 	}
 
+	public function findByRefreshHash( string $hash ): ?array {
+		foreach ( $this->rows as $row ) {
+			if ( isset( $row['refresh_hash'] ) && hash_equals( (string) $row['refresh_hash'], $hash ) ) {
+				return $row;
+			}
+		}
+
+		return null;
+	}
+
 	public function find( int $id ): ?array {
 		return $this->rows[ $id ] ?? null;
 	}
