@@ -224,7 +224,7 @@ class FileToolsTest extends TestCase {
 
 		$binary = $tool->execute( array( 'path' => 'bin.dat' ), $this->ctx() );
 		$this->assertTrue( $binary->isError() );
-		$this->assertMatchesRegularExpression( '/^bin\.dat is a binary file \(4 bytes, [^)]+\); file_read only returns text files\.$/', $binary->text() );
+		$this->assertMatchesRegularExpression( '/^bin\.dat is a binary file \(4 bytes, [^)]+\); file_read only returns text files\. To duplicate it, use file_copy\.$/', $binary->text() );
 
 		$big = $tool->execute( array( 'path' => 'big.bin' ), $this->ctx() );
 		$this->assertTrue( $big->isError() );
