@@ -91,6 +91,41 @@ abstract class AbstractFileTool extends AbstractTool {
 	}
 
 	/**
+	 * Copies a file atomically and byte for byte: temp file in the target directory, then rename.
+	 *
+	 * Preserves the permissions of an existing target. Leaves no temp file behind on failure.
+	 *
+	 * @param string $source Absolute path of an existing file.
+	 * @param string $target Absolute target path; its directory must exist.
+	 * @return string|null Error message, or null on success.
+	 */
+	protected function atomicCopy( string $source, string $target ): ?string {
+		$temp = dirname( $target ) . DIRECTORY_SEPARATOR . '.' . basename( $target ) . '.' . uniqid( '', true ) . '.tmp';
+
+		if ( ! @copy( $source, $temp ) ) {
+			@unlink( $temp );
+			return 'Could not copy the file.';
+		}
+		clearstatcache( true, $source );
+		clearstatcache( true, $temp );
+		if ( @filesize( $temp ) !== @filesize( $source ) ) {
+			@unlink( $temp );
+			return 'The copy was incomplete.';
+		}
+		if ( file_exists( $target ) ) {
+			$perms = @fileperms( $target );
+			if ( false !== $perms ) {
+				@chmod( $temp, $perms & 0777 );
+			}
+		}
+		if ( ! @rename( $temp, $target ) ) {
+			@unlink( $temp );
+			return 'Could not replace the file.';
+		}
+		return null;
+	}
+
+	/**
 	 * Iterator over everything below a directory. Symlinked directories are listed but never entered.
 	 *
 	 * @param string        $absolute Absolute directory path.

@@ -27,6 +27,7 @@ use TechThrill\MCP\Safety\SqlClassifier;
 use TechThrill\MCP\Tools\DbExecute;
 use TechThrill\MCP\Tools\DbQuery;
 use TechThrill\MCP\Tools\DbSchema;
+use TechThrill\MCP\Tools\FileCopy;
 use TechThrill\MCP\Tools\FileDelete;
 use TechThrill\MCP\Tools\FileEdit;
 use TechThrill\MCP\Tools\FileList;
@@ -137,7 +138,7 @@ final class Plugin {
 		$registry->register( new DbQuery( $wpdb, $classifier ) );
 		$registry->register( new DbExecute( $wpdb, $classifier, $this->safe_mode ) );
 		$registry->register( new DbSchema( $wpdb ) );
-		foreach ( array( FileList::class, FileRead::class, FileSearch::class, FileWrite::class, FileEdit::class, FileDelete::class ) as $file_tool ) {
+		foreach ( array( FileList::class, FileRead::class, FileSearch::class, FileWrite::class, FileEdit::class, FileCopy::class, FileDelete::class ) as $file_tool ) {
 			$registry->register( new $file_tool( $this->path_jail, $this->safe_mode ) );
 		}
 		$registry->register(

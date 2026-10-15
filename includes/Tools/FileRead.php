@@ -83,7 +83,7 @@ final class FileRead extends AbstractFileTool {
 		if ( $this->isBinary( $file->absolute ) ) {
 			$mime = function_exists( 'mime_content_type' ) ? mime_content_type( $file->absolute ) : false;
 			$mime = false === $mime ? 'application/octet-stream' : $mime;
-			return $this->fail( $file->relative . ' is a binary file (' . $size . ' bytes, ' . $mime . '); file_read only returns text files.' );
+			return $this->fail( $file->relative . ' is a binary file (' . $size . ' bytes, ' . $mime . '); file_read only returns text files. To duplicate it, use file_copy.' );
 		}
 
 		$text = file_get_contents( $file->absolute );
