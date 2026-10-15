@@ -70,11 +70,12 @@ bearer_token_env_var = "TECHTHRILL_MCP_<SLUG>_TOKEN"
 | `file_search` | `files:read` | Search file contents with a regular expression and an optional filename glob. |
 | `file_write` | `files:write` | Create or overwrite a file. |
 | `file_edit` | `files:write` | Replace an exact string in a file. |
+| `file_copy` | `files:write` | Copy a file byte for byte (images and other binary files work), or a directory with `recursive`. |
 | `file_delete` | `files:write` | Delete a file, or a directory with `recursive`. |
 
 ## Safety
 
-- **Safe mode** is on by default. While it is on, the plugin refuses: `DELETE` and `UPDATE` without a `WHERE` clause; `DROP` and `TRUNCATE`; the WP-CLI commands `db reset`, `db drop`, `db clean`, `db import`, `site empty`, `core download`, `core update-db`, `plugin uninstall`, `plugin delete`, `theme delete`, `user delete`, `post delete --force` and `site delete`; any `db export` that writes a dump file (only `db export -`, which writes to standard output, is allowed, and not with `--result-file` or `--tab`); deleting directories; and writes to protected paths. With safe mode off, destructive SQL still needs `confirm_destructive: true`.
+- **Safe mode** is off by default (changed 2026-10-15 at the owner's request) and is recommended on for production sites. Sites that already stored the setting keep it; only fresh installs start with it off. Turn it on under TechThrill MCP > Settings. While it is on, the plugin refuses: `DELETE` and `UPDATE` without a `WHERE` clause; `DROP` and `TRUNCATE`; the WP-CLI commands `db reset`, `db drop`, `db clean`, `db import`, `site empty`, `core download`, `core update-db`, `plugin uninstall`, `plugin delete`, `theme delete`, `user delete`, `post delete --force` and `site delete`; any `db export` that writes a dump file (only `db export -`, which writes to standard output, is allowed, and not with `--result-file` or `--tab`); deleting directories; and writes to protected paths. With safe mode off, destructive SQL still needs `confirm_destructive: true`, and the protected paths listed below that apply in every mode stay protected.
 - **Protected paths:** `wp-config.php`, `wp-cli.yml` and `wp-cli.local.yml` can never be written or deleted through the file tools (`wp-config.php` is readable only by a token that also has `db:read`). `.htaccess`, `wp-content/uploads/techthrill-mcp/` and the plugin's own directory are not writable while safe mode is on.
 - **Scopes:** `wp-cli`, `db:read`, `db:write`, `files:read`, `files:write`. Presets on the Connect tab: Full access, Read only, Files only.
 - **Token binding:** tokens are stored only as SHA-256 hashes and shown once. They can expire, be revoked, and are rate limited per token. A token acts as the administrator who created it.
@@ -123,7 +124,7 @@ add_filter( 'techthrill_mcp_search_ignore', function ( array $dirs ) {
 
 Under TechThrill MCP > Settings (stored as the single option `techthrill_mcp_settings`):
 
-- **Safe mode:** on by default.
+- **Safe mode:** a toggle switch, off by default and recommended on for production sites. Existing installs keep their stored setting.
 - **Rate limit:** requests per minute per token. Default 120, `0` turns it off.
 - **WP-CLI timeout:** default seconds for `wp_cli` (default 60).
 - **WP-CLI path:** optional override for the `wp` executable or `wp-cli.phar`.
@@ -163,13 +164,13 @@ Run this once against a real WordPress site before a release. Nothing here has b
 4. Create a token with each preset (Full access, Read only, Files only). Confirm the one-time token box shows once and is gone after a page reload.
 5. Run the Claude Code command from the Connect tab on your machine, run `/mcp` in Claude Code, and confirm the server shows as connected. Repeat the setup with the Codex snippet and confirm Codex lists the server.
 6. Call `site_info` and confirm every key: site and home URL, WordPress, PHP and MySQL versions, `ABSPATH`, `WP_CONTENT_DIR`, table prefix, multisite flag, active theme, active plugins, locale, timezone, `safe_mode`, `host_capabilities` (including `php_binary`) and the token's scopes.
-7. With a Read-only token, call `tools/list` and confirm it shows no `db_execute`, `file_write`, `file_edit`, `file_delete` or `wp_cli`.
+7. With a Read-only token, call `tools/list` and confirm it shows no `db_execute`, `file_write`, `file_edit`, `file_copy`, `file_delete` or `wp_cli`.
 8. Call `wp_cli` with `core version`, then with `plugin list --format=json`. On a Windows host that only has `wp.bat`, confirm the batch-file refusal message, click the Connect page's Download WP-CLI button, and retry.
 9. On a Linux host without `wp` on `PATH` (php-fpm or Apache), click Download WP-CLI, confirm the status card's WP-CLI row shows the phar run via a CLI php (`via /usr/bin/php wp-cli.phar` or similar, not `php-fpm`), then call `wp_cli` with `core version`.
 10. Call `wp_cli` with `eval "1;"` and with `db query "SELECT 1"` and confirm both are refused as always blocked ("Refused: the command ... is not available through TechThrill MCP."). Call it with `db reset --yes` and confirm safe mode refuses it.
 11. Call `db_query` with `SELECT ID, post_title FROM {prefix}posts`. Call `db_schema` with no table, then with `{prefix}posts`.
-12. Call `db_execute` with an `UPDATE ... WHERE` statement (it works). Call it with `DELETE FROM {prefix}postmeta` without a `WHERE` and confirm safe mode refuses it with the text "Refused by safe mode: DELETE without a WHERE clause would affect every row in ... The site administrator can disable safe mode under TechThrill MCP → Settings if this is intended." Turn safe mode off, repeat the `DELETE` without `confirm_destructive` and confirm it asks for confirmation, then run it with `confirm_destructive: true` against a throwaway table. Turn safe mode back on.
-13. Call `file_list` on `.`, `file_read` on the active theme's `style.css`, then `file_edit` that `style.css` to add a comment, read it back, and `file_edit` again to remove the comment. Call `file_search` for a known string with glob `*.css`, then `file_write` a new file under `wp-content/uploads/`, `file_edit` it, and `file_delete` it. Confirm `file_write` to `wp-config.php`, `wp-cli.yml` and the plugin's own directory are refused.
+12. Call `db_execute` with an `UPDATE ... WHERE` statement (it works). Turn safe mode on in Settings, call it with `DELETE FROM {prefix}postmeta` without a `WHERE` and confirm safe mode refuses it with the text "Refused by safe mode: DELETE without a WHERE clause would affect every row in ... The site administrator can disable safe mode under TechThrill MCP → Settings if this is intended." Turn safe mode off, repeat the `DELETE` without `confirm_destructive` and confirm it asks for confirmation, then run it with `confirm_destructive: true` against a throwaway table. Set safe mode back to the state you want for the site.
+13. Call `file_list` on `.`, `file_read` on the active theme's `style.css`, then `file_edit` that `style.css` to add a comment, read it back, and `file_edit` again to remove the comment. Call `file_search` for a known string with glob `*.css`, then `file_write` a new file under `wp-content/uploads/`, `file_edit` it, `file_copy` it to a second name (and copy a binary file such as an image, then compare sizes), and `file_delete` both. Confirm `file_write` to `wp-config.php`, `wp-cli.yml` and the plugin's own directory are refused.
 14. With a Files-only token, call `file_read` on `wp-config.php` and confirm it is refused, and `file_search` for `DB_PASSWORD` and confirm it returns no match from `wp-config.php`.
 15. Send a request with `Content-Type: application/json` and an invalid JSON body and confirm a 400 with JSON-RPC code `-32700` (not WordPress's `rest_invalid_json`). Send a `GET` to the endpoint and confirm 405 with `Allow: POST`.
 16. In Settings set the rate limit to 5 per minute, exceed it, and confirm a 429 with a `Retry-After` header. Set it back to 120.

@@ -22,8 +22,10 @@ Success looks like:
 - A site owner can hand a scoped token to a contractor and see every call that
   token made.
 - The plugin is safe to install by default: it does nothing until a token exists,
-  and safe mode blocks the most destructive operations until an admin turns it
-  off.
+  and safe mode, which an admin can turn on, blocks the most destructive
+  operations. (Revised 2026-10-15 at the owner's request: safe mode is off by
+  default and recommended on for production; existing installs keep their
+  stored setting.)
 
 Out of scope for v1: hosted relay service, OAuth login flow, server-sent events
 streaming, multisite network-wide tokens, WP-CLI emulation when PHP cannot
@@ -307,7 +309,7 @@ them. Leading `/` or `./` is tolerated and normalised.
 - `file_read` (`files:read`): `path`, `offset` (line, default 1), `limit`
   (lines, default 2000). Returns `{ content, total_lines, truncated }`. Files
   over 5 MB are refused. Binary files (null byte in the first 8 KB) are refused
-  with their size and mime type reported instead.
+  with their size and mime type reported instead, plus a pointer to `file_copy`.
 - `file_search` (`files:read`): `pattern` (regex, PCRE), `path` (default `.`),
   `glob` (filename filter such as `*.php`), `max_results` (default 200,
   max 1000), `case_sensitive` (default true). Returns `{ matches: [{ path,
@@ -321,6 +323,23 @@ them. Leading `/` or `./` is tolerated and normalised.
   `replace_all` (default false). Fails if `old_string` is not found, or is found
   more than once while `replace_all` is false. Reports how many replacements
   were made.
+- `file_copy` (`files:write`): `from`, `to`, `overwrite` (default false),
+  `create_dirs` (default true), `recursive` (default false). Copies byte for
+  byte, so binary files such as images work (`file_read` refuses them and
+  `file_write` carries only a JSON string). The source is resolved with
+  `PathJail::resolve` and the destination with `resolveForCreate`; every
+  destination path goes through `SafeMode::checkPathWrite`. A source of
+  `wp-config.php` needs the `db:read` scope as well. Each file is limited to
+  50 MB (`MAX_FILE_BYTES` = 52428800). Files are copied atomically through a
+  temp file in the destination directory and `rename`, so no `.tmp` file is
+  left behind. An existing destination needs `overwrite`. A directory needs
+  `recursive`; a pre-flight pass validates every destination (jail, safe mode,
+  file against directory conflicts, size) before anything is written, so a
+  refused copy writes nothing. A directory is never copied into itself, the site
+  root is never a destination, an existing destination directory is merged into
+  (nothing is deleted), and symlinks inside the tree are skipped and counted in
+  `skipped_links`. Returns `{ from, to, type, files, bytes, overwritten }` (plus
+  `skipped_links` for a directory).
 - `file_delete` (`files:write`): `path`, `recursive` (default false). Directory
   deletion requires safe mode off and `recursive: true`.
 
@@ -344,7 +363,7 @@ them. Leading `/` or `./` is tolerated and normalised.
 Single policy class with methods such as `allowsSql(string $type, bool
 $hasWhere)`, `allowsCliCommand(array $argv)`, `allowsPathWrite(string
 $relative)`, `allowsDirectoryDelete()`. Reads the `techthrill_mcp_safe_mode`
-option (default `1`). Every refusal returns a `Refusal` value object with a
+option (default `0`, off; changed 2026-10-15 from `1` at the owner's request; a stored value is never overwritten). Every refusal returns a `Refusal` value object with a
 `reason` string that is passed to the agent verbatim, for example:
 
 > Refused by safe mode: DELETE without a WHERE clause would affect every row in
@@ -446,7 +465,7 @@ token and tool and a status badge. A "Clear log" button with a nonce.
 
 ### 6.4 Settings
 
-- Safe mode (checkbox, default on, with a short explanation of what it blocks)
+- Safe mode (toggle switch, default off, recommended on for production sites, with a short explanation of what it blocks). Changed 2026-10-15 at the owner's request; it was on by default in the first release. Existing installs keep their stored setting, and the Connect page shows a warning row while it is off.
 - Rate limit per minute (number, default 120, 0 = off)
 - WP-CLI timeout default (number, default 60)
 - WP-CLI binary path override (text, optional)

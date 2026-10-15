@@ -4,7 +4,7 @@ Tags: mcp, claude, codex, ai, wp-cli
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.0.1
+Stable tag: 1.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -17,7 +17,7 @@ TechThrill MCP adds a Model Context Protocol (MCP) endpoint to your site. AI cli
 * `site_info` - URLs, versions, paths, active theme and plugins, and what the host can run.
 * `wp_cli` - run a WP-CLI command (needs the `wp-cli` scope).
 * `db_query`, `db_execute`, `db_schema` - read, change and inspect the database (`db:read`, `db:write`).
-* `file_list`, `file_read`, `file_search`, `file_write`, `file_edit`, `file_delete` - work with files under the WordPress root (`files:read`, `files:write`).
+* `file_list`, `file_read`, `file_search`, `file_write`, `file_edit`, `file_copy`, `file_delete` - work with files under the WordPress root (`files:read`, `files:write`).
 
 Nothing is exposed until an administrator creates a token. Tokens are created under TechThrill MCP in the admin menu, are shown once, and each token carries only the scopes you give it. The Connect page shows copy-and-paste setup commands for Claude Code, Codex and generic MCP clients.
 
@@ -26,7 +26,7 @@ The endpoint is `POST /wp-json/techthrill-mcp/v1/mcp` with an `Authorization: Be
 = Safety in plain words =
 
 * No token, no access. A fresh install exposes nothing.
-* Safe mode is on by default. It refuses DELETE or UPDATE without a WHERE clause, destructive WP-CLI commands (including `db import`, `plugin delete` and any `db export` except `db export -` to standard output), deleting directories, and writes to protected paths.
+* Safe mode is off by default (changed 2026-10-15 at the owner's request) and is recommended on for production sites. Existing installs keep their stored setting. When on, it refuses DELETE or UPDATE without a WHERE clause, destructive WP-CLI commands (including `db import`, `plugin delete` and any `db export` except `db export -` to standard output), deleting directories, and writes to protected paths.
 * File tools are jailed to the WordPress root, and `wp-config.php`, `wp-cli.yml` and `wp-cli.local.yml` can never be modified through them.
 * Every tool call is written to an activity log you can read and clear.
 * Requests are rate limited per token.
@@ -65,7 +65,7 @@ Both database tables (tokens and activity log), the settings, the plugin's trans
 
 == Security ==
 
-Nothing is exposed until you create a token. Tokens are stored only as SHA-256 hashes; the plain token is displayed once when you create it and cannot be recovered. Each token has scopes (`wp-cli`, `db:read`, `db:write`, `files:read`, `files:write`) and an optional expiry, and can be revoked at any time. Safe mode is on by default and refuses destructive operations until you turn it off. Every tool call, including refusals, is recorded in the audit log under TechThrill MCP > Activity and pruned after the retention period. The Connect page shows a warning when the site is not served over HTTPS; tokens are sent in a header, so use HTTPS on any public site.
+Nothing is exposed until you create a token. Tokens are stored only as SHA-256 hashes; the plain token is displayed once when you create it and cannot be recovered. Each token has scopes (`wp-cli`, `db:read`, `db:write`, `files:read`, `files:write`) and an optional expiry, and can be revoked at any time. Safe mode is off by default (changed 2026-10-15 at the owner's request); turn it on under TechThrill MCP > Settings and it refuses destructive operations. It is recommended on for production sites, and sites that already stored the setting keep it. Every tool call, including refusals, is recorded in the audit log under TechThrill MCP > Activity and pruned after the retention period. The Connect page shows a warning when the site is not served over HTTPS; tokens are sent in a header, so use HTTPS on any public site.
 
 Treat the `wp-cli` scope as full access to the site: WP-CLI can read `wp-config.php` and install code. The `files:write` scope alone can also execute code, by editing theme or plugin files. Safe mode and protected paths guard against accidents, not against a malicious token holder, so only give these scopes to clients you trust as an administrator.
 
@@ -76,6 +76,11 @@ Long WP-CLI runs may be cut short by the host's PHP `max_execution_time` or by a
 On multisite, deleting the plugin removes only the current site's tables.
 
 == Changelog ==
+
+= 1.1.0 =
+* New `file_copy` tool: copies a file byte for byte (images and other binary files), or a directory tree with `recursive`. Atomic, jailed, checks every destination against safe mode and the protected paths before writing, and skips symlinks.
+* `file_read` now points to `file_copy` when it refuses a binary file.
+* Safe mode is now off by default on fresh installs and is shown as a toggle switch in Settings. It is recommended on for production sites. Existing installs keep their stored setting. The Connect page shows a warning while it is off.
 
 = 1.0.1 =
 * Pin the Composer platform to PHP 7.4 so the development dependencies install on PHP 7.4; no runtime changes.
