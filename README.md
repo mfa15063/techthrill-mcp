@@ -141,7 +141,9 @@ composer lint   # run PHP_CodeSniffer (WordPress standard + PHPCompatibilityWP 7
 composer build  # write dist/techthrill-mcp.zip
 ```
 
-Tests run without WordPress loaded; `tests/bootstrap.php` stubs the WordPress functions the plugin needs. On Windows, 14 tests are skipped (symlink and POSIX-only cases). CI runs the suite on Linux where the symlink and POSIX-only tests execute, on PHP 7.4, 8.1 and 8.3.
+Tests run without WordPress loaded; `tests/bootstrap.php` stubs the WordPress functions the plugin needs. On Windows, 14 tests are skipped (symlink and POSIX-only cases). CI runs the suite on Linux where the symlink and POSIX-only tests execute, on PHP 7.4, 8.1 and 8.3. On Linux 13 tests are skipped instead, all of them Windows-only cases (PATH resolution, trailing dot/space stripping, batch-file refusal).
+
+CI ran on Linux (ubuntu-latest) for v1.0.0 on 2026-10-15: all three matrix jobs passed `composer lint` and `composer test` (355 tests, 13 Windows-only skips), so the 14 tests skipped on Windows have executed and passed. The composer platform is pinned to PHP 7.4.33 so the lock file installs on every matrix job; run `composer update` on any PHP version and the lock stays 7.4-compatible.
 
 `languages/techthrill-mcp.pot` currently holds only the header. Regenerate it with WP-CLI:
 
