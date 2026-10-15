@@ -54,6 +54,7 @@ final class Connect {
 		$problems = $this->plugin->oauth()->problems();
 
 		$this->renderOneClick( $problems );
+		$this->renderAgentPrompt();
 		$this->renderStatusCard();
 
 		// The bearer-token flow stays available as an Advanced fallback. It opens by itself right after a token
@@ -194,6 +195,22 @@ final class Connect {
 		}
 
 		return $parsed->format( 'Y-m-d H:i:s' );
+	}
+
+	/**
+	 * Card with a copy-and-paste prompt for AI agents that can run commands (Claude Code, Codex, Cursor).
+	 */
+	private function renderAgentPrompt(): void {
+		if ( ! $this->plugin->oauth()->isAvailable() ) {
+			return;
+		}
+
+		echo '<div class="ttm-card ttm-agent-prompt"><h2>' . esc_html__( 'Connect an AI agent with a prompt', 'techthrill-mcp' ) . '</h2>';
+		echo '<p>' . esc_html__( 'Copy this prompt and paste it into Claude Code, Codex or the Cursor agent. The agent shows you a link; open it, check the code, choose the permissions and approve. The prompt contains no token and nothing secret.', 'techthrill-mcp' ) . '</p>';
+		echo '<p class="ttm-warning">' . esc_html__( 'A normal chat window (for example free Claude or ChatGPT in the browser) cannot do this. If you paste the prompt there, it replies that you need an agent that can run commands, or a plan with custom connectors. For those use "Connect with one paste" above.', 'techthrill-mcp' ) . '</p>';
+		echo '<pre class="ttm-prompt"><code id="ttm-agent-prompt">' . esc_html( $this->plugin->oauth()->agentPrompt() ) . '</code></pre>';
+		$this->copyButton( 'ttm-agent-prompt' );
+		echo '</div>';
 	}
 
 	/**

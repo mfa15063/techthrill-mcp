@@ -64,6 +64,18 @@ final class Module {
 			}
 		);
 		add_action(
+			'admin_post_' . AgentConsentPage::ACTION,
+			function (): void {
+				$this->graph()['agent_page']->handle();
+			}
+		);
+		add_action(
+			'admin_post_nopriv_' . AgentConsentPage::ACTION,
+			function (): void {
+				$this->graph()['agent_page']->handle();
+			}
+		);
+		add_action(
 			'admin_post_nopriv_' . ConsentPage::ACTION,
 			function (): void {
 				$this->graph()['consent']->handle();
@@ -76,6 +88,18 @@ final class Module {
 	 */
 	public function metadata(): Metadata {
 		return $this->graph()['metadata'];
+	}
+
+	/**
+	 * The prompt the Connect page offers for AI agents that can run commands.
+	 */
+	public function agentPrompt(): string {
+		return AgentPrompt::text(
+			home_url( '/' ),
+			$this->metadata()->resource(),
+			rest_url( self::REST_NAMESPACE . '/oauth/agent/start' ),
+			rest_url( self::REST_NAMESPACE . '/oauth/agent/poll' )
+		);
 	}
 
 	/**
@@ -118,14 +142,18 @@ final class Module {
 		$limiter   = new AttemptLimiter( new TransientRateLimitStore() );
 		$resolver  = new ClientResolver( $clients, new ClientMetadataFetcher( array( self::class, 'fetchMetadataDocument' ), $clients ) );
 		$registrar = new ClientRegistrar( $clients, $limiter );
-		$codes     = new OptionAuthorizationCodeStore( new WpOptionsGateway( $this->db ) );
+		$gateway   = new WpOptionsGateway( $this->db );
+		$codes     = new OptionAuthorizationCodeStore( $gateway );
+		$agent     = new AgentAccess( $gateway, $this->tokens, $limiter );
 
 		$this->graph = array(
 			'metadata'   => $metadata,
 			'registrar'  => $registrar,
 			'codes'      => $codes,
-			'routes'     => new RestRoutes( $metadata, $registrar, new TokenEndpoint( $resolver, $codes, $this->tokens, $limiter, $endpoint ), array( self::class, 'clientIp' ) ),
+			'agent'      => $agent,
+			'routes'     => new RestRoutes( $metadata, $registrar, new TokenEndpoint( $resolver, $codes, $this->tokens, $limiter, $endpoint ), array( self::class, 'clientIp' ), $agent, array( AgentConsentPage::class, 'urlFor' ) ),
 			'well_known' => new WellKnown( $metadata ),
+			'agent_page' => new AgentConsentPage( new AgentConsentFlow( $agent ) ),
 			'consent'    => new ConsentPage( new ConsentFlow( new AuthorizeValidator( $resolver, $endpoint ), new Authorizer( $codes ) ) ),
 		);
 
@@ -139,6 +167,7 @@ final class Module {
 		$graph = $this->graph();
 		$graph['codes']->prune();
 		$graph['registrar']->prune();
+		$graph['agent']->prune();
 	}
 
 	/**

@@ -412,3 +412,15 @@ Both links contain only the endpoint URL and a name, never a secret.
 - OpenAI Apps SDK authentication: https://developers.openai.com/apps-sdk/build/auth
 - Cursor install links: https://cursor.com/docs/mcp/install-links
 - VS Code MCP servers: https://code.visualstudio.com/docs/agent-customization/mcp-servers
+
+## 12. Addendum: connect with a prompt (release 1.2.1)
+
+Requested by the owner after 1.2.0: copy a prompt, paste it into an AI, get a link to an approval screen with the permission checkboxes. Claude's chat on the web cannot send authenticated POST requests, so this works only for agents that can run commands (Claude Code, Codex, the Cursor agent); every other client keeps using §4.
+
+- **No secret in the prompt.** It carries the site address, the MCP endpoint and two public URLs. The token is created only after approval and is handed over once.
+- **Flow** (a device-style grant): `POST /oauth/agent/start` returns `request_id`, a secret `poll_code`, a short `user_code` (`XXXX-XXXX`, no look-alike characters) and the approval link; the agent shows the link and code; the administrator approves at `admin-post.php?action=techthrill_mcp_agent&request=<id>` (login, `manage_options`, nonce, scope checkboxes defaulting to read-only); the agent polls `POST /oauth/agent/poll` every 3 seconds and receives `access_token` once.
+- **Token:** an ordinary bearer token (kind bearer), 30 days, named `AI agent: <label> <date>`, scopes as ticked, visible and revocable on the Tokens tab.
+- **Storage:** one non-autoloaded option per request, holding only the SHA-256 of the poll code. After approval the plaintext token waits in that option for at most 5 minutes and is deleted by the single successful poll (delete-wins, so it is handed out at most once). A request expires after 10 minutes.
+- **Phishing:** anyone can start a request, so the approval page shows the agent's name, the short code the agent displayed and the requesting IP address, and tells the administrator to approve only when the code matches. Only a logged-in administrator can approve or deny.
+- **Limits:** 10 starts per IP per hour, 60 polls per IP per minute; wrong poll codes and unknown IDs are all answered `expired` and never reveal anything.
+- **Wrong client:** the prompt's first step tells an AI without tools to reply that it needs an agent that can run commands or a plan with custom connectors, and to stop.

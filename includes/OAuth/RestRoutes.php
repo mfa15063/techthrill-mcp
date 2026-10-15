@@ -24,6 +24,15 @@ final class RestRoutes {
 
 	private TokenEndpoint $token;
 
+	private AgentAccess $agent;
+
+	/**
+	 * Builds the approval link for a request ID.
+	 *
+	 * @var callable
+	 */
+	private $approvalUrl;
+
 	/**
 	 * Returns the client IP address.
 	 *
@@ -36,12 +45,16 @@ final class RestRoutes {
 	 * @param ClientRegistrar $registrar Dynamic client registration.
 	 * @param TokenEndpoint   $token     Token endpoint.
 	 * @param callable        $ip        Returns the client IP address.
+	 * @param AgentAccess     $agent       Agent access requests.
+	 * @param callable        $approvalUrl Builds the approval link: fn( string $requestId ): string.
 	 */
-	public function __construct( Metadata $metadata, ClientRegistrar $registrar, TokenEndpoint $token, callable $ip ) {
-		$this->metadata  = $metadata;
-		$this->registrar = $registrar;
-		$this->token     = $token;
-		$this->ip        = $ip;
+	public function __construct( Metadata $metadata, ClientRegistrar $registrar, TokenEndpoint $token, callable $ip, AgentAccess $agent, callable $approvalUrl ) {
+		$this->metadata    = $metadata;
+		$this->registrar   = $registrar;
+		$this->token       = $token;
+		$this->ip          = $ip;
+		$this->agent       = $agent;
+		$this->approvalUrl = $approvalUrl;
 	}
 
 	/**
@@ -53,6 +66,8 @@ final class RestRoutes {
 			'/authorization-server' => array( 'GET', 'authorizationServer' ),
 			'/register'             => array( 'POST', 'registerClient' ),
 			'/token'                => array( 'POST', 'issueToken' ),
+			'/agent/start'          => array( 'POST', 'agentStart' ),
+			'/agent/poll'           => array( 'POST', 'agentPoll' ),
 		);
 		foreach ( $routes as $path => $route ) {
 			register_rest_route(
@@ -154,6 +169,60 @@ final class RestRoutes {
 		}
 
 		return $response;
+	}
+
+	/**
+	 * POST agent/start: an AI agent asks for access and gets an approval link and a short code.
+	 *
+	 * @param \WP_REST_Request $request Request.
+	 */
+	public function agentStart( \WP_REST_Request $request ): \WP_REST_Response {
+		$data  = json_decode( (string) $request->get_body(), true );
+		$label = is_array( $data ) && isset( $data['label'] ) && is_string( $data['label'] ) ? $data['label'] : '';
+
+		try {
+			$started                 = $this->agent->start( $label, (string) call_user_func( $this->ip ) );
+			$started['approval_url'] = (string) call_user_func( $this->approvalUrl, $started['request_id'] );
+			$started['mcp_url']      = $this->metadata->resource();
+
+			return $this->noStore( $started, 201 );
+		} catch ( OAuthException $e ) {
+			return $this->noStore(
+				array(
+					'error'             => $e->error(),
+					'error_description' => $e->description(),
+				),
+				$e->status()
+			);
+		}
+	}
+
+	/**
+	 * POST agent/poll: the agent asks whether the administrator answered.
+	 *
+	 * @param \WP_REST_Request $request Request.
+	 */
+	public function agentPoll( \WP_REST_Request $request ): \WP_REST_Response {
+		$data = json_decode( (string) $request->get_body(), true );
+		$id   = is_array( $data ) && isset( $data['request_id'] ) && is_string( $data['request_id'] ) ? $data['request_id'] : '';
+		$code = is_array( $data ) && isset( $data['poll_code'] ) && is_string( $data['poll_code'] ) ? $data['poll_code'] : '';
+
+		try {
+			$response = $this->noStore( $this->agent->poll( $id, $code, (string) call_user_func( $this->ip ) ), 200 );
+			if ( 'pending' === ( $response->get_data()['status'] ?? '' ) ) {
+				$response->header( 'Retry-After', (string) AgentAccess::INTERVAL );
+			}
+
+			return $response;
+		} catch ( OAuthException $e ) {
+			return $this->noStore(
+				array(
+					'error'             => $e->error(),
+					'error_description' => $e->description(),
+				),
+				$e->status()
+			);
+		}
 	}
 
 	/**

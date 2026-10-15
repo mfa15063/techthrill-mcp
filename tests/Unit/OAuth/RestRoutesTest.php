@@ -3,6 +3,7 @@ namespace TechThrill\MCP\Tests\Unit\OAuth;
 
 use PHPUnit\Framework\TestCase;
 use TechThrill\MCP\Auth\TokenManager;
+use TechThrill\MCP\OAuth\AgentAccess;
 use TechThrill\MCP\OAuth\AttemptLimiter;
 use TechThrill\MCP\OAuth\ClientMetadataFetcher;
 use TechThrill\MCP\OAuth\ClientRegistrar;
@@ -26,8 +27,16 @@ class RestRoutesTest extends TestCase {
 
 	private InMemoryClientStore $store;
 
+	private AgentAccess $agent;
+
+	private InMemoryOptionsGateway $gateway;
+
+	private InMemoryTokenRepository $tokenRepo;
+
 	protected function setUp(): void {
-		$this->store = new InMemoryClientStore();
+		$this->store     = new InMemoryClientStore();
+		$this->gateway   = new InMemoryOptionsGateway();
+		$this->tokenRepo = new InMemoryTokenRepository();
 		unset( $GLOBALS['ttm_registered_routes'], $GLOBALS['ttm_filters'], $GLOBALS['wp'] );
 		$this->codes = new OptionAuthorizationCodeStore( new InMemoryOptionsGateway() );
 	}
@@ -43,14 +52,16 @@ class RestRoutesTest extends TestCase {
 		$metadata = new Metadata( self::BASE, self::BASE . '/mcp', 'https://example.com/wp-admin/admin-post.php?action=x', self::BASE . '/oauth/token', self::BASE . '/oauth/register', self::BASE . '/oauth/protected-resource' );
 		$endpoint = new TokenEndpoint( $resolver, $this->codes, new TokenManager( new InMemoryTokenRepository() ), $limiter, self::BASE . '/mcp' );
 
-		return new RestRoutes( $metadata, new ClientRegistrar( $store, $limiter ), $endpoint, fn() => '1.2.3.4' );
+		$this->agent = new AgentAccess( $this->gateway, new TokenManager( $this->tokenRepo ), $limiter );
+
+		return new RestRoutes( $metadata, new ClientRegistrar( $store, $limiter ), $endpoint, fn() => '1.2.3.4', $this->agent, fn( string $id ) => 'https://example.com/wp-admin/admin-post.php?action=techthrill_mcp_agent&request=' . $id );
 	}
 
 	public function test_registers_the_four_routes_and_the_bypass_filter(): void {
 		$this->routes()->register();
 
 		$paths = array_map( fn( $r ) => $r[1], $GLOBALS['ttm_registered_routes'] );
-		$this->assertSame( array( '/oauth/protected-resource', '/oauth/authorization-server', '/oauth/register', '/oauth/token' ), $paths );
+		$this->assertSame( array( '/oauth/protected-resource', '/oauth/authorization-server', '/oauth/register', '/oauth/token', '/oauth/agent/start', '/oauth/agent/poll' ), $paths );
 		foreach ( $GLOBALS['ttm_registered_routes'] as $route ) {
 			$this->assertSame( 'techthrill-mcp/v1', $route[0] );
 			$this->assertSame( '__return_true', $route[2]['permission_callback'] );
@@ -58,6 +69,8 @@ class RestRoutesTest extends TestCase {
 		}
 		$this->assertSame( 'GET', $GLOBALS['ttm_registered_routes'][0][2]['methods'] );
 		$this->assertSame( 'POST', $GLOBALS['ttm_registered_routes'][3][2]['methods'] );
+		$this->assertSame( 'POST', $GLOBALS['ttm_registered_routes'][4][2]['methods'] );
+		$this->assertSame( 'POST', $GLOBALS['ttm_registered_routes'][5][2]['methods'] );
 		$this->assertCount( 1, $GLOBALS['ttm_filters']['rest_authentication_errors'] );
 	}
 
@@ -118,5 +131,46 @@ class RestRoutesTest extends TestCase {
 		$this->assertSame( 'unsupported_grant_type', $r->get_data()['error'] );
 		$this->assertSame( 'no-store', $r->get_headers()['Cache-Control'] );
 		$this->assertSame( 'no-cache', $r->get_headers()['Pragma'] );
+	}
+
+	public function test_agent_start_returns_the_approval_link_and_a_code(): void {
+		$r = $this->routes()->agentStart( new \WP_REST_Request( 'POST', array( 'Content-Type' => 'application/json' ), json_encode( array( 'label' => 'Claude Code' ) ) ) );
+
+		$this->assertSame( 201, $r->get_status() );
+		$d = $r->get_data();
+		$this->assertStringEndsWith( '&request=' . $d['request_id'], $d['approval_url'] );
+		$this->assertMatchesRegularExpression( '/^[A-Z2-9]{4}-[A-Z2-9]{4}$/', $d['user_code'] );
+		$this->assertSame( self::BASE . '/mcp', $d['mcp_url'] );
+		$this->assertSame( 'no-store', $r->get_headers()['Cache-Control'] );
+	}
+
+	public function test_agent_start_tolerates_a_missing_or_invalid_body(): void {
+		$this->assertSame( 201, $this->routes()->agentStart( new \WP_REST_Request( 'POST', array(), '' ) )->get_status() );
+		$this->assertSame( 201, $this->routes()->agentStart( new \WP_REST_Request( 'POST', array(), 'not json' ) )->get_status() );
+		$this->assertSame( 201, $this->routes()->agentStart( new \WP_REST_Request( 'POST', array(), json_encode( array( 'label' => array( 'x' ) ) ) ) )->get_status() );
+	}
+
+	public function test_agent_poll_reports_pending_then_the_token_once(): void {
+		$routes = $this->routes();
+		$d      = $routes->agentStart( new \WP_REST_Request( 'POST', array(), '{}' ) )->get_data();
+		$poll   = fn() => $routes->agentPoll( new \WP_REST_Request( 'POST', array(), json_encode( array( 'request_id' => $d['request_id'], 'poll_code' => $d['poll_code'] ) ) ) );
+
+		$pending = $poll();
+		$this->assertSame( 'pending', $pending->get_data()['status'] );
+		$this->assertSame( '3', $pending->get_headers()['Retry-After'] );
+
+		$this->agent->approve( $d['request_id'], 3, array( 'db:read' ) );
+		$ok = $poll();
+		$this->assertSame( 'approved', $ok->get_data()['status'] );
+		$this->assertMatchesRegularExpression( '/^ttm_/', $ok->get_data()['access_token'] );
+		$this->assertSame( 'no-store', $ok->get_headers()['Cache-Control'] );
+
+		$this->assertSame( 'expired', $poll()->get_data()['status'] );
+	}
+
+	public function test_agent_poll_with_garbage_is_expired_not_an_error(): void {
+		$r = $this->routes()->agentPoll( new \WP_REST_Request( 'POST', array(), '["x"]' ) );
+		$this->assertSame( 200, $r->get_status() );
+		$this->assertSame( 'expired', $r->get_data()['status'] );
 	}
 }

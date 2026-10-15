@@ -236,3 +236,10 @@
 	list-style: disc;
 	margin-left: 20px;
 }
+
+.ttm-prompt {
+	max-height: 260px;
+	overflow: auto;
+	white-space: pre-wrap;
+	word-break: break-word;
+}

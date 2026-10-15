@@ -32,6 +32,15 @@ class InMemoryOptionsGateway implements OptionsGateway {
 		return true;
 	}
 
+	public function update( string $name, array $value ): bool {
+		if ( ! isset( $this->options[ $name ] ) ) {
+			return false;
+		}
+		$this->options[ $name ] = $value;
+
+		return true;
+	}
+
 	public function delete( string $name ): bool {
 		if ( $this->lose_delete_race || ! isset( $this->options[ $name ] ) ) {
 			return false;

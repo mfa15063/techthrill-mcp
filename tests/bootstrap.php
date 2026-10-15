@@ -131,3 +131,6 @@ if ( ! function_exists( 'wp_strip_all_tags' ) ) {
 		return trim( strip_tags( (string) $text ) );
 	}
 }
+if ( ! defined( 'DAY_IN_SECONDS' ) ) {
+	define( 'DAY_IN_SECONDS', 86400 );
+}

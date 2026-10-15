@@ -33,6 +33,10 @@ final class WpOptionsGateway implements OptionsGateway {
 		return (bool) add_option( $name, $value, '', 'no' );
 	}
 
+	public function update( string $name, array $value ): bool {
+		return (bool) update_option( $name, $value, false );
+	}
+
 	public function delete( string $name ): bool {
 		return (bool) delete_option( $name );
 	}

@@ -30,6 +30,14 @@ interface OptionsGateway {
 	public function add( string $name, array $value ): bool;
 
 	/**
+	 * Replaces the value of an existing option.
+	 *
+	 * @param string $name  Option name.
+	 * @param array  $value Value.
+	 */
+	public function update( string $name, array $value ): bool;
+
+	/**
 	 * Deletes an option. True only for the caller whose delete removed it.
 	 *
 	 * @param string $name Option name.

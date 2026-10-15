@@ -38,6 +38,16 @@ Requirements and limits:
 - If your host blocks `/.well-known` (an nginx rule or a security plugin), most clients still work through the link in the 401 response; otherwise use the bearer-token section below.
 - Every grant appears on the Tokens tab as `OAuth: <client>`; revoking it stops it at once.
 
+## Connect an AI agent with a prompt
+
+Below the one-paste card, **Connect an AI agent with a prompt** shows a prompt to copy into an AI that can run commands: Claude Code, Codex or the Cursor agent. The prompt holds only public addresses, never a token.
+
+1. The agent asks the site for access (`POST /wp-json/techthrill-mcp/v1/oauth/agent/start`) and shows you an approval link and a short code.
+2. You open the link, log in as an administrator, check that the code matches, tick the permissions (read-only is pre-selected; `wp-cli`, `db:write`, `files:write` for copying and changing files, and so on) and press Approve.
+3. The agent collects its token once (`.../oauth/agent/poll`). The token lasts 30 days and shows on the Tokens tab as `AI agent: <name> <date>`; revoke it there at any time.
+
+A normal chat window (free Claude or ChatGPT in the browser) cannot run commands. The prompt tells such a chat to stop and reply that you need an agent that can run commands, or an app and plan with custom connectors (use the one-paste card for those). Requests expire after 10 minutes, are limited per IP address, and the approval page shows the code and the requesting IP address so you can tell your own request from a stranger's.
+
 ## Connect with a bearer token (Advanced)
 
 Under **Advanced: connect with a bearer token** on the Connect tab, **Quick connect** creates a token from a preset (Read only, Files only or Full access) in one click, and **Custom connection** lets you pick scopes and an expiry yourself. Both show ready-to-paste commands with the token. Run the command it shows on your own machine:
@@ -182,7 +192,7 @@ Run this once against a real WordPress site before a release. Nothing here has b
 2. Copy the plugin folder into `wp-content/plugins/` (or upload the zip) and activate it. Confirm the tables `{prefix}techthrill_mcp_tokens` (id, name, lookup, hash, scopes, user_id, created_at, expires_at, last_used_at, revoked_at) and `{prefix}techthrill_mcp_log` (id, token_id, tool, summary, status, duration_ms, created_at) exist.
 3. Open TechThrill MCP > Connect. The status card shows rows for HTTPS, REST reachable, PHP exec and WP-CLI. On a non-local site served over plain HTTP, confirm the HTTPS row shows the warning.
 4. Create a token with each preset (Full access, Read only, Files only). Confirm the one-time token box shows once and is gone after a page reload.
-5. Add the endpoint with `claude mcp add --transport http NAME URL`, log in with `/mcp`, and confirm the consent screen shows read-only scopes ticked and the connection appears on the Tokens tab as `OAuth: Claude Code`. Then, under Advanced, press Quick connect (Read only), confirm a token named "Quick connect (Read only) <date>" appears on the Tokens tab with only `db:read` and `files:read`, then run the Claude Code command from the Connect tab on your machine, run `/mcp` in Claude Code, and confirm the server shows as connected. Repeat the setup with the Codex snippet and confirm Codex lists the server.
+5. Copy the agent prompt into Claude Code, approve the link it shows with only Read only ticked, and confirm the agent reports `site_info`. Paste the same prompt into a normal browser chat and confirm it only replies that it needs an agent or a connector. Then add the endpoint with `claude mcp add --transport http NAME URL`, log in with `/mcp`, and confirm the consent screen shows read-only scopes ticked and the connection appears on the Tokens tab as `OAuth: Claude Code`. Then, under Advanced, press Quick connect (Read only), confirm a token named "Quick connect (Read only) <date>" appears on the Tokens tab with only `db:read` and `files:read`, then run the Claude Code command from the Connect tab on your machine, run `/mcp` in Claude Code, and confirm the server shows as connected. Repeat the setup with the Codex snippet and confirm Codex lists the server.
 6. Call `site_info` and confirm every key: site and home URL, WordPress, PHP and MySQL versions, `ABSPATH`, `WP_CONTENT_DIR`, table prefix, multisite flag, active theme, active plugins, locale, timezone, `safe_mode`, `host_capabilities` (including `php_binary`) and the token's scopes.
 7. With a Read-only token, call `tools/list` and confirm it shows no `db_execute`, `file_write`, `file_edit`, `file_copy`, `file_delete` or `wp_cli`.
 8. Call `wp_cli` with `core version`, then with `plugin list --format=json`. On a Windows host that only has `wp.bat`, confirm the batch-file refusal message, click the Connect page's Download WP-CLI button, and retry.

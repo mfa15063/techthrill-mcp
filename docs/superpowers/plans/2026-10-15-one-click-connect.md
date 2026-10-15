@@ -580,3 +580,5 @@ public function test_links_have_no_secret_material(): void                    //
 - **Task 13:** the REST cookie-auth bypass applies to every `/techthrill-mcp/v1/oauth/` route, so REST lockdown plugins cannot block the token endpoint.
 - **Task 15:** the tab script gained an optional `data-ttm-group` so two tab sets can share a page.
 - **Not done by tests:** the manual verification in Task 16 (real Claude, ChatGPT, Claude Code, Codex, Cursor and VS Code logins, nginx and subdirectory installs) has to be run on a real public HTTPS site.
+- **Release 1.2.1 (connect with a prompt):** added `AgentAccess`, `AgentPrompt`, `AgentConsentFlow`, `AgentConsentPage` and `Page` (shared page shell), `OptionsGateway::update()`, `Random::code()`, the REST routes `oauth/agent/start` and `oauth/agent/poll`, and the Connect card. All covered by unit tests except the WordPress input and output of the page. See spec section 12.
+
