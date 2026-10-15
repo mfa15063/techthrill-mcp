@@ -4,7 +4,7 @@ Tags: mcp, claude, codex, ai, wp-cli
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.1.0
+Stable tag: 1.1.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -76,6 +76,9 @@ Long WP-CLI runs may be cut short by the host's PHP `max_execution_time` or by a
 On multisite, deleting the plugin removes only the current site's tables.
 
 == Changelog ==
+
+= 1.1.1 =
+* Connect page: new Quick connect card. Choose Read only, Files only or Full access, press one button, and get the ready-to-paste Claude Code and Codex setup. The previous form is now called Custom connection.
 
 = 1.1.0 =
 * New `file_copy` tool: copies a file byte for byte (images and other binary files), or a directory tree with `recursive`. Atomic, jailed, checks every destination against safe mode and the protected paths before writing, and skips symlinks.

@@ -9,6 +9,7 @@ namespace TechThrill\MCP\Admin\Pages;
 
 use TechThrill\MCP\Admin\Flash;
 use TechThrill\MCP\Admin\PharInstaller;
+use TechThrill\MCP\Admin\QuickConnect;
 use TechThrill\MCP\Admin\Snippets;
 use TechThrill\MCP\Auth\Scopes;
 use TechThrill\MCP\Plugin;
@@ -46,8 +47,9 @@ final class Connect {
 	 * Prints the tab.
 	 */
 	public function render(): void {
-		$this->renderStatusCard();
 		$this->renderNewToken();
+		$this->renderQuickConnect();
+		$this->renderStatusCard();
 		$this->renderForm();
 	}
 
@@ -58,11 +60,12 @@ final class Connect {
 	 * in this response and never written to a transient or option.
 	 */
 	public function maybeHandleCreate(): void {
-		if ( ! isset( $_POST['ttm_action'] ) || 'create_token' !== sanitize_key( wp_unslash( $_POST['ttm_action'] ) ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Routing only; handleCreate() verifies the nonce.
-			return;
+		$action = isset( $_POST['ttm_action'] ) ? sanitize_key( wp_unslash( $_POST['ttm_action'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Routing only; the handlers verify the nonce.
+		if ( 'quick_connect' === $action ) {
+			$this->handleQuickConnect();
+		} elseif ( 'create_token' === $action ) {
+			$this->handleCreate();
 		}
-
-		$this->handleCreate();
 	}
 
 	/**
@@ -95,6 +98,28 @@ final class Connect {
 			Flash::redirect( 'connect' );
 		}
 
+		$this->storeToken( $name, $scopes, $expires_at );
+	}
+
+	/**
+	 * Quick connect: one button creates a token from a preset and shows ready-to-paste commands.
+	 */
+	public function handleQuickConnect(): void {
+		Flash::guard( 'techthrill_mcp_quick_connect' );
+
+		$preset = isset( $_POST['preset'] ) ? sanitize_key( wp_unslash( $_POST['preset'] ) ) : QuickConnect::DEFAULT_PRESET; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Verified in Flash::guard().
+
+		$this->storeToken( QuickConnect::name( $preset, time() ), QuickConnect::scopesFor( $preset ), null );
+	}
+
+	/**
+	 * Creates the token and keeps it in memory for this request's render; on failure a notice is stored and the browser is redirected back.
+	 *
+	 * @param string      $name       Connection name.
+	 * @param string[]    $scopes     Scopes.
+	 * @param string|null $expires_at UTC expiry or null.
+	 */
+	private function storeToken( string $name, array $scopes, ?string $expires_at ): void {
 		try {
 			$created = $this->plugin->tokenManager()->create( $name, $scopes, get_current_user_id(), $expires_at );
 		} catch ( \RuntimeException $e ) {
@@ -315,6 +340,25 @@ final class Connect {
 		echo '<button type="button" class="button button-small" data-ttm-copy="' . esc_attr( $target_id ) . '" data-ttm-copied="' . esc_attr__( 'Copied', 'techthrill-mcp' ) . '">' . esc_html__( 'Copy', 'techthrill-mcp' ) . '</button>';
 	}
 
+	private function renderQuickConnect(): void {
+		echo '<div class="ttm-card ttm-quick"><h2>' . esc_html__( 'Quick connect', 'techthrill-mcp' ) . '</h2>';
+		echo '<p>' . esc_html__( 'Pick what the AI client may do, press the button, then paste one command into Claude Code or Codex. No other setup.', 'techthrill-mcp' ) . '</p>';
+		echo '<form method="post" action="' . esc_url( Flash::tabUrl( 'connect' ) ) . '" class="ttm-quick-form">';
+		echo '<input type="hidden" name="ttm_action" value="quick_connect" />';
+		wp_nonce_field( 'techthrill_mcp_quick_connect' );
+		foreach ( QuickConnect::presets() as $key => $preset ) {
+			echo '<label class="ttm-scope"><input type="radio" name="preset" value="' . esc_attr( $key ) . '"' . checked( QuickConnect::DEFAULT_PRESET, $key, false ) . ' /> <strong>' . esc_html( $preset['label'] ) . '</strong> ';
+			echo '<span class="description">(' . esc_html( implode( ', ', $preset['scopes'] ) ) . ')</span></label><br />';
+		}
+		submit_button( __( 'Create connection and show commands', 'techthrill-mcp' ), 'primary', 'submit', true, array( 'style' => 'margin-top:12px' ) );
+		echo '</form>';
+		echo '<ol class="ttm-quick-steps">';
+		echo '<li>' . esc_html__( 'Claude Code: paste the Claude Code command, then run /mcp inside Claude Code to check it is connected.', 'techthrill-mcp' ) . '</li>';
+		echo '<li>' . esc_html__( 'Codex: paste the Codex block (it sets one environment variable and adds the server to config.toml), then restart Codex.', 'techthrill-mcp' ) . '</li>';
+		echo '<li>' . esc_html__( 'The token is shown once. You can revoke it any time on the Tokens tab.', 'techthrill-mcp' ) . '</li>';
+		echo '</ol></div>';
+	}
+
 	private function renderForm(): void {
 		$labels = array(
 			'wp-cli'      => __( 'Run WP-CLI commands', 'techthrill-mcp' ),
@@ -324,7 +368,7 @@ final class Connect {
 			'files:write' => __( 'Change and delete files', 'techthrill-mcp' ),
 		);
 
-		echo '<div class="ttm-card"><h2>' . esc_html__( 'Create a connection', 'techthrill-mcp' ) . '</h2>';
+		echo '<div class="ttm-card"><h2>' . esc_html__( 'Custom connection', 'techthrill-mcp' ) . '</h2>';
 		echo '<form method="post" action="' . esc_url( Flash::tabUrl( 'connect' ) ) . '" class="ttm-create-form">';
 		echo '<input type="hidden" name="ttm_action" value="create_token" />';
 		wp_nonce_field( 'techthrill_mcp_create_token' );
