@@ -18,7 +18,7 @@
 - No `eval`, `extract`, dynamic `include`, or shell invocation (`exec`, `shell_exec`, `system`, `passthru`); the only process spawn is `proc_open` with an argv array.
 - Every string shown to a human goes through `__()`/`esc_html__()`; every tool error message is written so the agent can relay it verbatim.
 - Scopes: `wp-cli`, `db:read`, `db:write`, `files:read`, `files:write`. `db:write` implies `db:read`; `files:write` implies `files:read`.
-- Safe mode defaults off (changed 2026-10-15 at the owner's request; it was on in the first release) and is recommended on for production; existing installs keep their stored setting. Rate limit default 120/min. WP-CLI timeout default 60 s (5–300). Log retention default 30 days.
+- Safe mode defaults off (changed 2026-10-15 at the owner's request; it was on in the first release) and is recommended on for production; existing installs keep their stored setting. Rate limit default 120/min. WP-CLI timeout default 180 s (changed from 60 in 1.2.3; 5–300). Log retention default 30 days.
 - MCP protocol version advertised `2025-06-18`, also accepted `2025-03-26`.
 - Commit after every task with a conventional message. Run `composer test` before each commit from Task 2 onward.
 - No GitHub account or remote is required. The CI workflow in Task 17 is inert until the repo is pushed somewhere; the WP-CLI phar download uses a public URL with no authentication.

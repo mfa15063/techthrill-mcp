@@ -19,7 +19,7 @@ final class Settings {
 	const DEFAULTS = array(
 		'safe_mode'          => 0,
 		'rate_limit'         => 120,
-		'cli_timeout'        => 60,
+		'cli_timeout'        => 180,
 		'cli_path'           => '',
 		'php_path'           => '',
 		'log_retention_days' => 30,

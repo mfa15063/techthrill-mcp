@@ -156,7 +156,7 @@ Under TechThrill MCP > Settings (stored as the single option `techthrill_mcp_set
 
 - **Safe mode:** a toggle switch, off by default and recommended on for production sites. Existing installs keep their stored setting.
 - **Rate limit:** requests per minute per token. Default 120, `0` turns it off.
-- **WP-CLI timeout:** default seconds for `wp_cli` (default 60).
+- **WP-CLI timeout:** default seconds for `wp_cli` (default 180, changed from 60 in 1.2.3; allowed range 5 to 300). Sites that already saved Settings keep their stored value.
 - **WP-CLI path:** optional override for the `wp` executable or `wp-cli.phar`.
 - **PHP CLI binary path override:** the command-line PHP used to run `wp-cli.phar`. Leave empty to auto-detect (the running PHP when it is a CLI binary, otherwise a `php` on `PATH`). Under php-fpm, mod_php or CGI the web server's PHP cannot run a phar, so this matters on hosts without a `wp` executable.
 - **Log retention:** days to keep activity rows (default 30).

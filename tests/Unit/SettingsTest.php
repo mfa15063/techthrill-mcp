@@ -10,7 +10,7 @@ class SettingsTest extends TestCase {
 		$defaults = new Settings( array() );
 		$this->assertSame( 0, $defaults->get( 'safe_mode' ) );
 		$this->assertSame( 120, $defaults->get( 'rate_limit' ) );
-		$this->assertSame( 60, $defaults->get( 'cli_timeout' ) );
+		$this->assertSame( 180, $defaults->get( 'cli_timeout' ) );
 		$this->assertSame( '', $defaults->get( 'cli_path' ) );
 		$this->assertSame( '', $defaults->get( 'php_path' ) );
 		$this->assertSame( 30, $defaults->get( 'log_retention_days' ) );
@@ -18,7 +18,7 @@ class SettingsTest extends TestCase {
 
 		$custom = new Settings( array( 'rate_limit' => 5 ) );
 		$this->assertSame( 5, $custom->get( 'rate_limit' ) );
-		$this->assertSame( 60, $custom->get( 'cli_timeout' ) );
+		$this->assertSame( 180, $custom->get( 'cli_timeout' ) );
 		$this->assertSame( 5, $custom->all()['rate_limit'] );
 		$this->assertCount( 6, $custom->all() );
 	}

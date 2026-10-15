@@ -4,7 +4,7 @@ Tags: mcp, claude, codex, ai, wp-cli
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.2.2
+Stable tag: 1.2.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -76,6 +76,9 @@ Long WP-CLI runs may be cut short by the host's PHP `max_execution_time` or by a
 On multisite, deleting the plugin removes only the current site's tables.
 
 == Changelog ==
+
+= 1.2.3 =
+* The default WP-CLI timeout is now 180 seconds (was 60). Sites that already saved their Settings keep their stored value.
 
 = 1.2.2 =
 * Connect page: the prompt card is now first, with four numbered steps, client chips, a larger copy-icon button that stays in place while the prompt scrolls, and the warning for normal chat windows below the prompt. "Connect with one paste" follows it.

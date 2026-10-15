@@ -231,7 +231,7 @@ the agent to call this first.
 ### 4.2 `wp_cli` (scope `wp-cli`)
 
 Arguments: `command` (string, required, without the leading `wp`),
-`timeout` (integer, 5–300, default 60).
+`timeout` (integer, 5–300, default 180; was 60 until 1.2.3).
 
 Behaviour:
 
@@ -468,7 +468,7 @@ token and tool and a status badge. A "Clear log" button with a nonce.
 
 - Safe mode (toggle switch, default off, recommended on for production sites, with a short explanation of what it blocks). Changed 2026-10-15 at the owner's request; it was on by default in the first release. Existing installs keep their stored setting, and the Connect page shows a warning row while it is off.
 - Rate limit per minute (number, default 120, 0 = off)
-- WP-CLI timeout default (number, default 60)
+- WP-CLI timeout default (number, default 180; was 60 until 1.2.3, existing installs keep their stored value)
 - WP-CLI binary path override (text, optional)
 - Log retention days (number, default 30)
 

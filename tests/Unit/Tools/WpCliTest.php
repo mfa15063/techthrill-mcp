@@ -57,7 +57,7 @@ class WpCliTest extends TestCase {
 		$this->assertSame( array( 'command' ), $schema['required'] );
 		$this->assertSame( 5, $schema['properties']['timeout']['minimum'] );
 		$this->assertSame( 300, $schema['properties']['timeout']['maximum'] );
-		$this->assertSame( 60, $schema['properties']['timeout']['default'] );
+		$this->assertSame( 180, $schema['properties']['timeout']['default'] );
 	}
 
 	public function test_argv_assembled_with_forced_flags(): void {
@@ -72,7 +72,7 @@ class WpCliTest extends TestCase {
 		);
 		$this->assertSame( $expected, $runner->argv );
 		$this->assertSame( ABSPATH, $runner->cwd );
-		$this->assertSame( 60, $runner->timeout );
+		$this->assertSame( 180, $runner->timeout );
 
 		$required = array( 'PATH', 'HOME', 'WP_CLI_DISABLE_AUTO_CHECK_UPDATE', 'WP_CLI_CACHE_DIR' );
 		$allowed  = $required;
