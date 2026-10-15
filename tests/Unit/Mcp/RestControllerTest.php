@@ -69,7 +69,7 @@ class RestControllerTest extends TestCase {
 		unset( $GLOBALS['ttm_current_user'], $GLOBALS['ttm_registered_routes'], $GLOBALS['ttm_filters'], $GLOBALS['wp'], $_SERVER['REQUEST_URI'], $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] );
 	}
 
-	private function controller( int $limit = 100 ): RestController {
+	private function controller( int $limit = 100, bool $with_challenge = false ): RestController {
 		$limiter = new RateLimiter( $limit, new InMemoryRateLimitStore(), fn() => $this->now );
 		$auth    = new Authenticator( $this->tokens, $limiter, fn( int $user_id ) => true );
 		$server  = new Server( $this->registry, new SchemaValidator(), '1.0.0' );
@@ -79,7 +79,8 @@ class RestControllerTest extends TestCase {
 			$server,
 			function ( int $token_id ): void {
 				$this->seen_token_ids[] = $token_id;
-			}
+			},
+			$with_challenge ? fn( bool $invalid ): string => 'Bearer ' . ( $invalid ? 'error="invalid_token", ' : '' ) . 'resource_metadata="https://example.com/rm"' : null
 		);
 	}
 
@@ -361,5 +362,38 @@ class RestControllerTest extends TestCase {
 		$this->controller()->handle( $this->post( self::INITIALIZE, null ) );
 		$this->assertSame( array( 0, 0 ), $this->seen_token_ids );
 		$this->assertSame( 0, end( $this->seen_token_ids ) );
+	}
+
+	public function test_401_response_has_www_authenticate_with_resource_metadata(): void {
+		$response = $this->controller( 100, true )->handle( $this->post( self::INITIALIZE, null ) );
+
+		$this->assertSame( 401, $response->get_status() );
+		$this->assertSame( 'Bearer resource_metadata="https://example.com/rm"', $response->get_headers()['WWW-Authenticate'] );
+	}
+
+	public function test_401_for_a_bad_token_adds_error_invalid_token(): void {
+		$response = $this->controller( 100, true )->handle( $this->post( self::INITIALIZE, 'ttm_' . str_repeat( 'z', 40 ) ) );
+
+		$this->assertSame( 401, $response->get_status() );
+		$this->assertSame( 'Bearer error="invalid_token", resource_metadata="https://example.com/rm"', $response->get_headers()['WWW-Authenticate'] );
+	}
+
+	public function test_rate_limited_and_successful_responses_have_no_challenge_header(): void {
+		$controller = $this->controller( 1, true );
+
+		$ok = $controller->handle( $this->post( self::INITIALIZE ) );
+		$this->assertSame( 200, $ok->get_status() );
+		$this->assertArrayNotHasKey( 'WWW-Authenticate', $ok->get_headers() );
+
+		$limited = $controller->handle( $this->post( self::INITIALIZE ) );
+		$this->assertSame( 429, $limited->get_status() );
+		$this->assertArrayNotHasKey( 'WWW-Authenticate', $limited->get_headers() );
+	}
+
+	public function test_no_challenge_callable_keeps_current_behaviour(): void {
+		$response = $this->controller()->handle( $this->post( self::INITIALIZE, null ) );
+
+		$this->assertSame( 401, $response->get_status() );
+		$this->assertArrayNotHasKey( 'WWW-Authenticate', $response->get_headers() );
 	}
 }

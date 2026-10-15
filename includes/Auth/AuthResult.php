@@ -51,7 +51,15 @@ final class AuthResult {
 	 */
 	private $retry_after;
 
-	private function __construct( bool $ok, array $row, array $scopes, int $status, int $code, string $message, int $retry_after ) {
+	/**
+	 * Why authentication failed: missing, invalid or empty.
+	 *
+	 * @var string
+	 */
+	private $reason;
+
+	private function __construct( bool $ok, array $row, array $scopes, int $status, int $code, string $message, int $retry_after, string $reason = '' ) {
+		$this->reason      = $reason;
 		$this->ok          = $ok;
 		$this->row         = $row;
 		$this->scopes      = $scopes;
@@ -80,9 +88,17 @@ final class AuthResult {
 	 * @param int    $code        JSON-RPC error code.
 	 * @param string $message     Message safe to show the client.
 	 * @param int    $retry_after Seconds to wait before retrying; 0 when not applicable.
+	 * @param string $reason      missing (no usable header), invalid (bad, expired or revoked token) or empty.
 	 */
-	public static function fail( int $status, int $code, string $message, int $retry_after = 0 ): self {
-		return new self( false, array(), array(), $status, $code, $message, $retry_after );
+	public static function fail( int $status, int $code, string $message, int $retry_after = 0, string $reason = '' ): self {
+		return new self( false, array(), array(), $status, $code, $message, $retry_after, $reason );
+	}
+
+	/**
+	 * Why authentication failed: `missing`, `invalid`, or an empty string for other results.
+	 */
+	public function reason(): string {
+		return $this->reason;
 	}
 
 	public function isOk(): bool {

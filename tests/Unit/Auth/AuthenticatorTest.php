@@ -196,4 +196,19 @@ class AuthenticatorTest extends TestCase {
 
 		$this->assertSame( array( 'wp-cli', 'db:read' ), $result->scopes() );
 	}
+
+	public function test_failure_reasons_distinguish_missing_from_invalid(): void {
+		$auth = $this->authenticator();
+		$this->assertSame( 'missing', $auth->authenticate( null )->reason() );
+		$this->assertSame( 'missing', $auth->authenticate( 'Basic abc' )->reason() );
+		$this->assertSame( 'invalid', $auth->authenticate( 'Bearer ttm_' . str_repeat( 'z', 40 ) )->reason() );
+
+		$created = $this->tokens->create( 'x', array( 'db:read' ), 3, null );
+		$this->tokens->revoke( $created['id'] );
+		$this->assertSame( 'invalid', $auth->authenticate( 'Bearer ' . $created['token'] )->reason() );
+
+		$fresh = $this->tokens->create( 'y', array( 'db:read' ), 3, null );
+		$this->assertSame( 'invalid', $this->authenticator( 100, fn( int $u ) => false )->authenticate( 'Bearer ' . $fresh['token'] )->reason() );
+		$this->assertSame( '', $this->authenticator()->authenticate( 'Bearer ' . $fresh['token'] )->reason() );
+	}
 }

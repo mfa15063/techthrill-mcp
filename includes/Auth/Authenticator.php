@@ -54,20 +54,24 @@ final class Authenticator {
 			return AuthResult::fail(
 				401,
 				JsonRpcError::UNAUTHORIZED,
-				'Missing or invalid Authorization header. Use: Authorization: Bearer <token>'
+				'Missing or invalid Authorization header. Use: Authorization: Bearer <token>',
+				0,
+				'missing'
 			);
 		}
 
 		$row = $this->tokens->verify( $matches[1] );
 		if ( null === $row ) {
-			return AuthResult::fail( 401, JsonRpcError::UNAUTHORIZED, 'Invalid, expired or revoked token.' );
+			return AuthResult::fail( 401, JsonRpcError::UNAUTHORIZED, 'Invalid, expired or revoked token.', 0, 'invalid' );
 		}
 
 		if ( ! call_user_func( $this->user_is_admin, (int) $row['user_id'] ) ) {
 			return AuthResult::fail(
 				401,
 				JsonRpcError::UNAUTHORIZED,
-				"This token's owner is no longer an administrator, so the token no longer works."
+				"This token's owner is no longer an administrator, so the token no longer works.",
+				0,
+				'invalid'
 			);
 		}
 

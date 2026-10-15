@@ -48,14 +48,23 @@ final class RestController {
 	private $on_authenticated;
 
 	/**
+	 * Builds the WWW-Authenticate value for a 401: fn( bool $invalidToken ): string.
+	 *
+	 * @var callable|null
+	 */
+	private $challenge;
+
+	/**
 	 * @param Authenticator $auth             Bearer token authentication.
 	 * @param Server        $server           MCP server.
 	 * @param callable|null $on_authenticated Optional fn( int $token_id ): void.
+	 * @param callable|null $challenge        Optional fn( bool $invalidToken ): string for the WWW-Authenticate header on 401 responses.
 	 */
-	public function __construct( Authenticator $auth, Server $server, ?callable $on_authenticated = null ) {
+	public function __construct( Authenticator $auth, Server $server, ?callable $on_authenticated = null, ?callable $challenge = null ) {
 		$this->auth             = $auth;
 		$this->server           = $server;
 		$this->on_authenticated = $on_authenticated;
+		$this->challenge        = $challenge;
 	}
 
 	/**
@@ -170,6 +179,10 @@ final class RestController {
 			$response = new \WP_REST_Response( JsonRpcError::envelope( null, $auth->code(), $auth->message() ), $auth->status() );
 			if ( $auth->retryAfter() > 0 ) {
 				$response->header( 'Retry-After', (string) $auth->retryAfter() );
+			}
+			// A 401 (never a 200) tells OAuth clients where to find the authorization server.
+			if ( 401 === $auth->status() && null !== $this->challenge ) {
+				$response->header( 'WWW-Authenticate', (string) call_user_func( $this->challenge, 'invalid' === $auth->reason() ) );
 			}
 
 			return $response;
