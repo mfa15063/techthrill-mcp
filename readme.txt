@@ -4,7 +4,7 @@ Tags: mcp, claude, codex, ai, wp-cli
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.0.0
+Stable tag: 1.0.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -76,6 +76,9 @@ Long WP-CLI runs may be cut short by the host's PHP `max_execution_time` or by a
 On multisite, deleting the plugin removes only the current site's tables.
 
 == Changelog ==
+
+= 1.0.1 =
+* Pin the Composer platform to PHP 7.4 so the development dependencies install on PHP 7.4; no runtime changes.
 
 = 1.0.0 =
 * Initial release: MCP endpoint, bearer tokens with scopes, WP-CLI, database and file tools, safe mode, rate limiting, activity log and admin pages.
