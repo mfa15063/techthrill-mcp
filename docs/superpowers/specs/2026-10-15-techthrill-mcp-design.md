@@ -27,7 +27,8 @@ Success looks like:
   default and recommended on for production; existing installs keep their
   stored setting.)
 
-Out of scope for v1: hosted relay service, OAuth login flow, server-sent events
+Out of scope for v1 (the OAuth login flow was added in 1.2.0; see
+`docs/superpowers/specs/2026-10-15-one-click-connect-design.md`): hosted relay service, OAuth login flow, server-sent events
 streaming, multisite network-wide tokens, WP-CLI emulation when PHP cannot
 spawn processes, integration test suite with wp-env.
 

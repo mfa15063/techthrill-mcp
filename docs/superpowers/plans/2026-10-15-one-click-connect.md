@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status:** implemented on branch `work` for release 1.2.0; see "As built" at the end for the differences from this plan.
+
 **Goal:** Make the plugin a small OAuth 2.1 authorization server for its own MCP endpoint so a user pastes only the endpoint URL into Claude, ChatGPT developer mode, Claude Code or Codex, approves one consent screen and is connected. The bearer-token form stays as an Advanced fallback. Target release 1.2.0.
 
 **Architecture:** New namespace `TechThrill\MCP\OAuth` under `includes/OAuth/`. Pure classes (PKCE, redirect allowlist, metadata, client registration, authorization validation, code store, token endpoint) take their dependencies through constructors so PHPUnit runs without WordPress. OAuth tokens reuse the existing tokens table and `ttm_` bearer format, so `Authenticator`, `Scopes`, rate limiting and the audit log need no changes. Thin adapters (`RestRoutes`, `WellKnown`, `ConsentPage`) wire the pure classes to WordPress.
@@ -91,7 +93,7 @@ public function test_status_for_oauth_rows(): void                              
 
 - [ ] **Step 2: Run tests** — Expected: FAIL.
 
-- [ ] **Step 3: Implement** with `random_bytes`-based generation reused from `randomString` (refresh length 43). Reuse `hash()` for the refresh hash. Do not touch `create()` or `verify()`.
+- [ ] **Step 3: Implement** with `random_bytes`-based generation reused from `randomString` (refresh tokens are `ttr_` plus 40 characters, like access tokens). Reuse `hash()` for the refresh hash. Do not touch `create()` or `verify()`.
 
 - [ ] **Step 4: Run tests** — Expected: PASS.
 
@@ -565,3 +567,16 @@ public function test_links_have_no_secret_material(): void                    //
 - [ ] **Step 4: Release gate.** Push the branch, confirm GitHub Actions is green on PHP 7.4, 8.1 and 8.3, merge to `main`, confirm CI on `main`. Tagging and publishing 1.2.0 is a separate decision and is not part of this plan.
 
 - [ ] **Step 5: Commit** — `release: one-click connect, version 1.2.0`
+
+---
+
+## As built (differences from the plan)
+
+- **Refresh token format:** `ttr_` plus 40 alphanumeric characters (the same generator as access tokens), not 43.
+- **Option access:** codes use a small `OptionsGateway` interface (`WpOptionsGateway` in production, `InMemoryOptionsGateway` in tests) instead of injected callables, because pruning needs to list options by prefix.
+- **Lazy object graph:** `Module` builds everything on first use from hooks, because `rest_url()` cannot be called at `plugins_loaded` (the rewrite object does not exist yet). The 401 challenge is resolved the same way.
+- **Extra pure classes:** `Random`, `ClientName`, `Availability` (permalink, HTTPS and local-site checks for the Connect card) and `ConsentFlow` (every branch of the consent page, so only the WordPress input and output stay untested by unit tests).
+- **Task 11:** `AuthorizeValidator` also refuses a `state` longer than 1024 characters. `Authorizer` takes only the code store.
+- **Task 13:** the REST cookie-auth bypass applies to every `/techthrill-mcp/v1/oauth/` route, so REST lockdown plugins cannot block the token endpoint.
+- **Task 15:** the tab script gained an optional `data-ttm-group` so two tab sets can share a page.
+- **Not done by tests:** the manual verification in Task 16 (real Claude, ChatGPT, Claude Code, Codex, Cursor and VS Code logins, nginx and subdirectory installs) has to be run on a real public HTTPS site.

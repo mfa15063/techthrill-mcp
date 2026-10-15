@@ -4,7 +4,7 @@ Tags: mcp, claude, codex, ai, wp-cli
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.1.1
+Stable tag: 1.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -19,7 +19,7 @@ TechThrill MCP adds a Model Context Protocol (MCP) endpoint to your site. AI cli
 * `db_query`, `db_execute`, `db_schema` - read, change and inspect the database (`db:read`, `db:write`).
 * `file_list`, `file_read`, `file_search`, `file_write`, `file_edit`, `file_copy`, `file_delete` - work with files under the WordPress root (`files:read`, `files:write`).
 
-Nothing is exposed until an administrator creates a token. Tokens are created under TechThrill MCP in the admin menu, are shown once, and each token carries only the scopes you give it. The Connect page shows copy-and-paste setup commands for Claude Code, Codex and generic MCP clients.
+Nothing is exposed until an administrator connects a client. The easiest way is the Connect page's "Connect with one paste" card: paste the endpoint URL into Claude, ChatGPT (developer mode), Claude Code or Codex and approve one consent screen; no token is copied. You can also create a bearer token (shown once) with only the scopes you choose, and the Connect page shows copy-and-paste setup commands for Claude Code, Codex and generic MCP clients.
 
 The endpoint is `POST /wp-json/techthrill-mcp/v1/mcp` with an `Authorization: Bearer ttm_...` header.
 
@@ -53,7 +53,7 @@ It is designed to be careful, but you are handing an AI client real control of y
 
 = How do I revoke access? =
 
-Open TechThrill MCP > Tokens and revoke the token. The client gets a 401 on its next request. Revoked tokens can then be deleted. Deactivating the plugin removes the endpoint.
+Open TechThrill MCP > Tokens and revoke the token or the OAuth connection. The client gets a 401 on its next request and cannot refresh. Revoked tokens can then be deleted. Deactivating the plugin removes the endpoint.
 
 = What happens on multisite? =
 
@@ -65,7 +65,7 @@ Both database tables (tokens and activity log), the settings, the plugin's trans
 
 == Security ==
 
-Nothing is exposed until you create a token. Tokens are stored only as SHA-256 hashes; the plain token is displayed once when you create it and cannot be recovered. Each token has scopes (`wp-cli`, `db:read`, `db:write`, `files:read`, `files:write`) and an optional expiry, and can be revoked at any time. Safe mode is off by default (changed 2026-10-15 at the owner's request); turn it on under TechThrill MCP > Settings and it refuses destructive operations. It is recommended on for production sites, and sites that already stored the setting keep it. Every tool call, including refusals, is recorded in the audit log under TechThrill MCP > Activity and pruned after the retention period. The Connect page shows a warning when the site is not served over HTTPS; tokens are sent in a header, so use HTTPS on any public site.
+Nothing is exposed until you create a token. Tokens are stored only as SHA-256 hashes; the plain token is displayed once when you create it and cannot be recovered. Each token and each OAuth connection has scopes (`wp-cli`, `db:read`, `db:write`, `files:read`, `files:write`) and an optional expiry, and can be revoked at any time. Safe mode is off by default (changed 2026-10-15 at the owner's request); turn it on under TechThrill MCP > Settings and it refuses destructive operations. It is recommended on for production sites, and sites that already stored the setting keep it. Every tool call, including refusals, is recorded in the audit log under TechThrill MCP > Activity and pruned after the retention period. The Connect page shows a warning when the site is not served over HTTPS; tokens are sent in a header, so use HTTPS on any public site.
 
 Treat the `wp-cli` scope as full access to the site: WP-CLI can read `wp-config.php` and install code. The `files:write` scope alone can also execute code, by editing theme or plugin files. Safe mode and protected paths guard against accidents, not against a malicious token holder, so only give these scopes to clients you trust as an administrator.
 
@@ -76,6 +76,14 @@ Long WP-CLI runs may be cut short by the host's PHP `max_execution_time` or by a
 On multisite, deleting the plugin removes only the current site's tables.
 
 == Changelog ==
+
+= 1.2.0 =
+* One-paste connect: the plugin is now a small OAuth 2.1 authorization server for its own MCP endpoint. Paste only the endpoint URL into Claude, ChatGPT (developer mode), Claude Code or Codex, approve one consent screen and you are connected. No token to copy.
+* The consent screen pre-selects read-only permissions (`db:read`, `files:read`); you choose what to grant.
+* OAuth grants appear on the Tokens page as `OAuth: <client>` and can be revoked there. Access tokens last one hour; refresh tokens are single use and last 30 days.
+* Connect page: new "Connect with one paste" card with steps for Claude, ChatGPT, Claude Code and Codex, plus Cursor and VS Code install links that carry no secret. The bearer-token form, Quick connect and Custom connection moved under "Advanced: connect with a bearer token".
+* Requires pretty permalinks and HTTPS for the one-paste flow; the bearer-token flow is unchanged and works everywhere.
+* New database columns on the tokens table are added automatically on upgrade.
 
 = 1.1.1 =
 * Connect page: new Quick connect card. Choose Read only, Files only or Full access, press one button, and get the ready-to-paste Claude Code and Codex setup. The previous form is now called Custom connection.

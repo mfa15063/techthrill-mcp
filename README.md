@@ -18,9 +18,29 @@ The plugin adds one endpoint, `POST /wp-json/techthrill-mcp/v1/mcp`, that speaks
 2. Activate the plugin.
 3. Open **TechThrill MCP** in the admin menu. The Connect tab shows the status of your host and lets you create a token.
 
-## Connect Claude Code
+## Connect with one paste (recommended)
 
-On the Connect tab, **Quick connect** is the fastest way: choose Read only, Files only or Full access and press one button. It creates a token and shows the ready-to-paste Claude Code command and Codex block. (A true paste-only-the-URL flow with a login screen is planned; see `docs/superpowers/specs/2026-10-15-one-click-connect-design.md`.) The longer **Custom connection** form below lets you pick scopes and an expiry yourself. Run the command it shows on your own machine:
+The top card on the Connect tab, **Connect with one paste**, shows the endpoint URL. Paste only that URL into your AI app, log in to this site if asked, choose the permissions (read-only is pre-selected) and approve. No token is copied or pasted. The plugin is a small OAuth 2.1 authorization server for its own endpoint (public clients, PKCE S256 only, one-hour access tokens and 30-day single-use refresh tokens). The design is in `docs/superpowers/specs/2026-10-15-one-click-connect-design.md`.
+
+| App | Steps |
+|---|---|
+| Claude (web, desktop, mobile) | Customize > Connectors > Add custom connector, paste the URL, press Connect and approve. In a chat, turn the connector on from the **+** menu. |
+| ChatGPT | Turn on Developer mode, add a custom MCP connector with the URL and approve. |
+| Claude Code | `claude mcp add --transport http <slug> <url>`, then `/mcp` or `claude mcp login <slug>`. |
+| Codex | `codex mcp add <slug> --url <url>`, then `codex mcp login <slug>`. |
+| Cursor, VS Code | Use the install links on the Connect card; they carry only the URL. |
+
+Requirements and limits:
+
+- Pretty permalinks and an `https://` site address. The Connect card says what to fix when either is missing.
+- Claude's hosted apps connect from `160.79.104.0/21` and ChatGPT from the internet, so a site on `localhost` or a private network cannot be used from them. Use Claude Code or Codex on the same machine instead (they use a loopback redirect).
+- Accepted redirect URIs are exactly `https://claude.ai/api/mcp/auth_callback`, `https://chatgpt.com/connector/oauth/<id>` and `http://localhost` or `http://127.0.0.1` on any port. Clients that use others are refused.
+- If your host blocks `/.well-known` (an nginx rule or a security plugin), most clients still work through the link in the 401 response; otherwise use the bearer-token section below.
+- Every grant appears on the Tokens tab as `OAuth: <client>`; revoking it stops it at once.
+
+## Connect with a bearer token (Advanced)
+
+Under **Advanced: connect with a bearer token** on the Connect tab, **Quick connect** creates a token from a preset (Read only, Files only or Full access) in one click, and **Custom connection** lets you pick scopes and an expiry yourself. Both show ready-to-paste commands with the token. Run the command it shows on your own machine:
 
 ```bash
 claude mcp add --transport http <slug> <url> --header "Authorization: Bearer <token>"
@@ -162,7 +182,7 @@ Run this once against a real WordPress site before a release. Nothing here has b
 2. Copy the plugin folder into `wp-content/plugins/` (or upload the zip) and activate it. Confirm the tables `{prefix}techthrill_mcp_tokens` (id, name, lookup, hash, scopes, user_id, created_at, expires_at, last_used_at, revoked_at) and `{prefix}techthrill_mcp_log` (id, token_id, tool, summary, status, duration_ms, created_at) exist.
 3. Open TechThrill MCP > Connect. The status card shows rows for HTTPS, REST reachable, PHP exec and WP-CLI. On a non-local site served over plain HTTP, confirm the HTTPS row shows the warning.
 4. Create a token with each preset (Full access, Read only, Files only). Confirm the one-time token box shows once and is gone after a page reload.
-5. Press Quick connect (Read only), confirm a token named "Quick connect (Read only) <date>" appears on the Tokens tab with only `db:read` and `files:read`, then run the Claude Code command from the Connect tab on your machine, run `/mcp` in Claude Code, and confirm the server shows as connected. Repeat the setup with the Codex snippet and confirm Codex lists the server.
+5. Add the endpoint with `claude mcp add --transport http NAME URL`, log in with `/mcp`, and confirm the consent screen shows read-only scopes ticked and the connection appears on the Tokens tab as `OAuth: Claude Code`. Then, under Advanced, press Quick connect (Read only), confirm a token named "Quick connect (Read only) <date>" appears on the Tokens tab with only `db:read` and `files:read`, then run the Claude Code command from the Connect tab on your machine, run `/mcp` in Claude Code, and confirm the server shows as connected. Repeat the setup with the Codex snippet and confirm Codex lists the server.
 6. Call `site_info` and confirm every key: site and home URL, WordPress, PHP and MySQL versions, `ABSPATH`, `WP_CONTENT_DIR`, table prefix, multisite flag, active theme, active plugins, locale, timezone, `safe_mode`, `host_capabilities` (including `php_binary`) and the token's scopes.
 7. With a Read-only token, call `tools/list` and confirm it shows no `db_execute`, `file_write`, `file_edit`, `file_copy`, `file_delete` or `wp_cli`.
 8. Call `wp_cli` with `core version`, then with `plugin list --format=json`. On a Windows host that only has `wp.bat`, confirm the batch-file refusal message, click the Connect page's Download WP-CLI button, and retry.
