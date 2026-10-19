@@ -128,7 +128,10 @@ final class Menu {
 				$this->activity->render();
 				break;
 			case 'settings':
+				// A token created in this request is shown once, at the top; the token forms are at the bottom.
+				$this->connect->renderNewToken();
 				$this->settings->render();
+				$this->connect->renderBearerSection();
 				break;
 			default:
 				$this->connect->render();

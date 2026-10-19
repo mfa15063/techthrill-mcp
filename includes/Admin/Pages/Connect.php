@@ -57,14 +57,22 @@ final class Connect {
 		$this->renderOneClick( $problems );
 		$this->renderStatusCard();
 
-		// The bearer-token flow stays available as an Advanced fallback. It opens by itself right after a token
-		// is created (the one-time token box lives inside it) or when the one-paste flow cannot work on this site.
-		$open = null !== $this->created || ! $this->plugin->oauth()->isAvailable();
-		echo '<details class="ttm-advanced"' . ( $open ? ' open' : '' ) . '><summary>' . esc_html__( 'Advanced: connect with a bearer token', 'techthrill-mcp' ) . '</summary>';
-		$this->renderNewToken();
+		echo '<p class="description ttm-bearer-hint">' . sprintf(
+			/* translators: %s: link to the Settings tab */
+			esc_html__( 'Need a bearer token for a client that cannot log in? You can create one at the bottom of the %s tab.', 'techthrill-mcp' ),
+			'<a href="' . esc_url( Flash::tabUrl( 'settings' ) ) . '">' . esc_html__( 'Settings', 'techthrill-mcp' ) . '</a>'
+		) . '</p>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Both parts are escaped above.
+	}
+
+	/**
+	 * The bearer-token section, shown at the bottom of the Settings tab: Quick connect and Custom connection.
+	 * The one-time token box (renderNewToken) is printed at the top of that tab.
+	 */
+	public function renderBearerSection(): void {
+		echo '<h2 class="ttm-section-title">' . esc_html__( 'Connect with a bearer token (Advanced)', 'techthrill-mcp' ) . '</h2>';
+		echo '<p class="description">' . esc_html__( 'For clients that cannot log in through the approval screen. Create a token, copy it once, and paste the ready-made command or config into the client. Revoke or delete tokens on the Tokens tab.', 'techthrill-mcp' ) . '</p>';
 		$this->renderQuickConnect();
 		$this->renderForm();
-		echo '</details>';
 	}
 
 	/**
@@ -93,14 +101,14 @@ final class Connect {
 		$name = function_exists( 'mb_substr' ) ? mb_substr( $name, 0, 100 ) : substr( $name, 0, 100 );
 		if ( '' === $name ) {
 			Flash::notice( 'error', __( 'Give the connection a name.', 'techthrill-mcp' ) );
-			Flash::redirect( 'connect' );
+			Flash::redirect( 'settings' );
 		}
 
 		$raw_scopes = isset( $_POST['scopes'] ) && is_array( $_POST['scopes'] ) ? array_filter( wp_unslash( $_POST['scopes'] ), 'is_scalar' ) : array(); // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Verified in Flash::guard(); sanitized by Scopes::sanitize().
 		$scopes     = Scopes::sanitize( $raw_scopes );
 		if ( ! $scopes ) {
 			Flash::notice( 'error', __( 'Choose at least one permission.', 'techthrill-mcp' ) );
-			Flash::redirect( 'connect' );
+			Flash::redirect( 'settings' );
 		}
 
 		$choice = isset( $_POST['expiry'] ) ? sanitize_key( wp_unslash( $_POST['expiry'] ) ) : 'never'; // phpcs:ignore WordPress.Security.NonceVerification.Missing
@@ -109,7 +117,7 @@ final class Connect {
 			$expires_at = $this->expiryFrom( $choice, $date );
 		} catch ( \InvalidArgumentException $e ) {
 			Flash::notice( 'error', $e->getMessage() );
-			Flash::redirect( 'connect' );
+			Flash::redirect( 'settings' );
 		}
 
 		$this->storeToken( $name, $scopes, $expires_at );
@@ -138,7 +146,7 @@ final class Connect {
 			$created = $this->plugin->tokenManager()->create( $name, $scopes, get_current_user_id(), $expires_at );
 		} catch ( \RuntimeException $e ) {
 			Flash::notice( 'error', __( 'The token could not be saved. Please try again.', 'techthrill-mcp' ) );
-			Flash::redirect( 'connect' );
+			Flash::redirect( 'settings' );
 		}
 
 		$this->created = array(
@@ -250,7 +258,7 @@ final class Connect {
 			if ( in_array( Availability::HTTPS, $problems, true ) ) {
 				echo '<li>' . esc_html__( 'The site address must start with https://.', 'techthrill-mcp' ) . '</li>';
 			}
-			echo '</ul><p>' . esc_html__( 'Until then, use the bearer-token section below.', 'techthrill-mcp' ) . '</p></div>';
+			echo '</ul><p>' . esc_html__( 'Until then, create a bearer token at the bottom of the Settings tab.', 'techthrill-mcp' ) . '</p></div>';
 			return;
 		}
 
@@ -440,7 +448,7 @@ final class Connect {
 		} else {
 			$result = array(
 				'state' => 'warning',
-				'text'  => __( 'The /.well-known document is not reachable (a server rule or security plugin may block it). Most clients still work through the 401 link; if one does not, use the bearer-token section.', 'techthrill-mcp' ),
+				'text'  => __( 'The /.well-known document is not reachable (a server rule or security plugin may block it). Most clients still work through the 401 link; if one does not, create a bearer token at the bottom of the Settings tab.', 'techthrill-mcp' ),
 			);
 		}
 
@@ -495,7 +503,10 @@ final class Connect {
 		return $result;
 	}
 
-	private function renderNewToken(): void {
+	/**
+	 * The one-time box that shows a token created in this request, with its copy buttons. Prints nothing otherwise.
+	 */
+	public function renderNewToken(): void {
 		$new           = $this->created;
 		$this->created = null;
 		if ( null === $new || '' === $new['token'] ) {
@@ -545,7 +556,7 @@ final class Connect {
 	private function renderQuickConnect(): void {
 		echo '<div class="ttm-card ttm-quick"><h2>' . esc_html__( 'Quick connect', 'techthrill-mcp' ) . '</h2>';
 		echo '<p>' . esc_html__( 'Pick what the AI client may do, press the button, then paste one command into Claude Code or Codex. No other setup.', 'techthrill-mcp' ) . '</p>';
-		echo '<form method="post" action="' . esc_url( Flash::tabUrl( 'connect' ) ) . '" class="ttm-quick-form">';
+		echo '<form method="post" action="' . esc_url( Flash::tabUrl( 'settings' ) ) . '" class="ttm-quick-form">';
 		echo '<input type="hidden" name="ttm_action" value="quick_connect" />';
 		wp_nonce_field( 'techthrill_mcp_quick_connect' );
 		foreach ( QuickConnect::presets() as $key => $preset ) {
@@ -571,7 +582,7 @@ final class Connect {
 		);
 
 		echo '<div class="ttm-card"><h2>' . esc_html__( 'Custom connection', 'techthrill-mcp' ) . '</h2>';
-		echo '<form method="post" action="' . esc_url( Flash::tabUrl( 'connect' ) ) . '" class="ttm-create-form">';
+		echo '<form method="post" action="' . esc_url( Flash::tabUrl( 'settings' ) ) . '" class="ttm-create-form">';
 		echo '<input type="hidden" name="ttm_action" value="create_token" />';
 		wp_nonce_field( 'techthrill_mcp_create_token' );
 		echo '<table class="form-table" role="presentation"><tbody>';

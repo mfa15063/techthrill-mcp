@@ -16,7 +16,7 @@ The plugin adds one endpoint, `POST /wp-json/techthrill-mcp/v1/mcp`, that speaks
 
 1. Build the zip with `composer build` (it is written to `dist/techthrill-mcp.zip`), then upload it under Plugins > Add New > Upload Plugin. Or copy the plugin folder to `wp-content/plugins/techthrill-mcp/`.
 2. Activate the plugin.
-3. Open **TechThrill MCP** in the admin menu. The Connect tab shows the status of your host and lets you create a token.
+3. Open **TechThrill MCP** in the admin menu. The Connect tab shows the status of your host and how to connect an AI client; bearer tokens are created at the bottom of the Settings tab.
 
 ## Connect with one paste (recommended)
 
@@ -52,7 +52,7 @@ A normal chat window (free Claude or ChatGPT in the browser) cannot run commands
 
 ## Connect with a bearer token (Advanced)
 
-Under **Advanced: connect with a bearer token** on the Connect tab, **Quick connect** creates a token from a preset (Read only, Files only or Full access) in one click, and **Custom connection** lets you pick scopes and an expiry yourself. Both show ready-to-paste commands with the token. Run the command it shows on your own machine:
+At the bottom of the **Settings** tab, under **Connect with a bearer token (Advanced)**, **Quick connect** creates a token from a preset (Read only, Files only or Full access) in one click, and **Custom connection** lets you pick scopes and an expiry yourself. Both show ready-to-paste commands with the token. Run the command it shows on your own machine:
 
 ```bash
 claude mcp add --transport http <slug> <url> --header "Authorization: Bearer <token>"
@@ -74,7 +74,7 @@ url = "<url>"
 bearer_token_env_var = "TECHTHRILL_MCP_<SLUG>_TOKEN"
 ```
 
-`<SLUG>` is the slug upper-cased with hyphens turned into underscores. The Connect tab also shows a generic `mcpServers` JSON block for other clients:
+`<SLUG>` is the slug upper-cased with hyphens turned into underscores. The one-time token box (shown at the top of the Settings tab after you create a token) also has a generic `mcpServers` JSON block for other clients:
 
 ```json
 {
@@ -110,7 +110,7 @@ bearer_token_env_var = "TECHTHRILL_MCP_<SLUG>_TOKEN"
 
 - **Safe mode** is off by default (changed 2026-10-15 at the owner's request) and is recommended on for production sites. Sites that already stored the setting keep it; only fresh installs start with it off. Turn it on under TechThrill MCP > Settings. While it is on, the plugin refuses: `DELETE` and `UPDATE` without a `WHERE` clause; `DROP` and `TRUNCATE`; the WP-CLI commands `db reset`, `db drop`, `db clean`, `db import`, `site empty`, `core download`, `core update-db`, `plugin uninstall`, `plugin delete`, `theme delete`, `user delete`, `post delete --force` and `site delete`; any `db export` that writes a dump file (only `db export -`, which writes to standard output, is allowed, and not with `--result-file` or `--tab`); deleting directories; and writes to protected paths. With safe mode off, destructive SQL still needs `confirm_destructive: true`, and the protected paths listed below that apply in every mode stay protected.
 - **Protected paths:** `wp-config.php`, `wp-cli.yml` and `wp-cli.local.yml` can never be written or deleted through the file tools (`wp-config.php` is readable only by a token that also has `db:read`). `.htaccess`, `wp-content/uploads/techthrill-mcp/` and the plugin's own directory are not writable while safe mode is on.
-- **Scopes:** `wp-cli`, `db:read`, `db:write`, `files:read`, `files:write`. Presets on the Connect tab: Full access, Read only, Files only.
+- **Scopes:** `wp-cli`, `db:read`, `db:write`, `files:read`, `files:write`. Presets in the bearer-token section of the Settings tab: Full access, Read only, Files only.
 - **Token binding:** tokens are stored only as SHA-256 hashes and shown once. They can expire, be revoked, and are rate limited per token. A token acts as the administrator who created it.
 - **Audit log:** every tool call, including refusals, is recorded (tool, short argument summary, ok / error / refused, duration) under TechThrill MCP > Activity and pruned after the retention period.
 - Files are confined to the WordPress root by a path jail that resolves symlinks.
@@ -194,7 +194,7 @@ Run this once against a real WordPress site before a release. Nothing here has b
 1. Gate: run the suite on Linux (CI, WSL or Docker) and confirm the 14 tests skipped on Windows run and pass. Do not continue until they do.
 2. Copy the plugin folder into `wp-content/plugins/` (or upload the zip) and activate it. Confirm the tables `{prefix}techthrill_mcp_tokens` (id, name, lookup, hash, scopes, user_id, created_at, expires_at, last_used_at, revoked_at) and `{prefix}techthrill_mcp_log` (id, token_id, tool, summary, status, duration_ms, created_at) exist.
 3. Open TechThrill MCP > Connect. The status card shows rows for HTTPS, REST reachable, PHP exec and WP-CLI. On a non-local site served over plain HTTP, confirm the HTTPS row shows the warning.
-4. Create a token with each preset (Full access, Read only, Files only). Confirm the one-time token box shows once and is gone after a page reload.
+4. On the Settings tab, create a token with each preset (Full access, Read only, Files only). Confirm the one-time token box shows once and is gone after a page reload.
 5. Copy the agent prompt into Claude Code, approve the link it shows after unticking everything except the two read permissions and choosing 1 day, and confirm the agent reports `site_info`. Paste the same prompt into a normal browser chat and confirm it only replies that it needs an agent or a connector. Then add the endpoint with `claude mcp add --transport http NAME URL`, log in with `/mcp`, and confirm the consent screen shows read-only scopes ticked and the connection appears on the Tokens tab as `OAuth: Claude Code`. Then, under Advanced, press Quick connect (Read only), confirm a token named "Quick connect (Read only) <date>" appears on the Tokens tab with only `db:read` and `files:read`, then run the Claude Code command from the Connect tab on your machine, run `/mcp` in Claude Code, and confirm the server shows as connected. Repeat the setup with the Codex snippet and confirm Codex lists the server.
 6. Call `site_info` and confirm every key: site and home URL, WordPress, PHP and MySQL versions, `ABSPATH`, `WP_CONTENT_DIR`, table prefix, multisite flag, active theme, active plugins, locale, timezone, `safe_mode`, `host_capabilities` (including `php_binary`) and the token's scopes.
 7. With a Read-only token, call `tools/list` and confirm it shows no `db_execute`, `file_write`, `file_edit`, `file_copy`, `file_delete`, `media_upload` or `wp_cli`.

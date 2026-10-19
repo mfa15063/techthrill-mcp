@@ -359,3 +359,13 @@
 	background: #fcf9e8;
 	border-left-color: #dba617;
 }
+
+.ttm-section-title {
+	border-top: 1px solid #c3c4c7;
+	margin-top: 32px;
+	padding-top: 24px;
+}
+
+.ttm-bearer-hint {
+	margin: 12px 4px;
+}

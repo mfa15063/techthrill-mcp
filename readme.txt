@@ -4,7 +4,7 @@ Tags: mcp, claude, codex, ai, wp-cli
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.5.0
+Stable tag: 1.5.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -38,8 +38,8 @@ Developers can adjust the tool list, the blocked WP-CLI commands, the protected 
 
 1. Upload the `techthrill-mcp` folder to `/wp-content/plugins/`, or upload the zip under Plugins > Add New > Upload Plugin.
 2. Activate the plugin through the Plugins screen.
-3. Open TechThrill MCP in the admin menu. On the Connect tab, create a token with the scopes you want (Full access, Read only or Files only).
-4. Copy the command for your client from the Connect tab and run it on your own machine.
+3. Open TechThrill MCP in the admin menu. The Connect tab has the one-paste connection and the agent prompt. If you need a bearer token instead, create one at the bottom of the Settings tab (Full access, Read only or Files only).
+4. Copy the command for your client from the Connect tab (or from the token box on the Settings tab) and run it on your own machine.
 5. Use HTTPS on any site that is reachable from the internet.
 
 == Frequently Asked Questions ==
@@ -77,6 +77,9 @@ Long WP-CLI runs may be cut short by the host's PHP `max_execution_time` or by a
 On multisite, deleting the plugin removes only the current site's tables.
 
 == Changelog ==
+
+= 1.5.1 =
+* The bearer-token section (Quick connect, Custom connection and the one-time copy-token box) moved from the Connect tab to the bottom of the Settings tab. The Connect tab now shows only the agent prompt, the one-paste connection and the status, with a link to the Settings tab for bearer tokens.
 
 = 1.5.0 =
 * Fixes for being asked to authorize again and again. The AI agent prompt now makes the agent save its approved connection in a private file and reuse it (it asks again only when the file is missing, the server answers 401, or it needs a permission you did not give). OAuth access tokens now last as long as the expiry you chose (1 day, 1 week, 30 days or never) instead of one hour, a refresh no longer needs the client's metadata document to be fetched again, and a client whose document worked before keeps working for up to 30 days if the document cannot be fetched.
