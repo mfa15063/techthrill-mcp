@@ -36,7 +36,7 @@ final class AgentPrompt {
 			. "Run: curl -s -X POST \"{$startUrl}\" -H \"Content-Type: application/json\" -d '{\"label\":\"<your own name, for example Claude Code>\"}'\n"
 			. "The JSON reply has request_id, poll_code, user_code, approval_url, expires_in and interval.\n\n"
 			. "STEP 2 - Ask me to approve.\n"
-			. "Show me approval_url and user_code, and ask me to open the link, log in as the site administrator, check that the code on the page matches user_code, tick the permissions I want to give you and press Approve. Do not open the link yourself. Never show poll_code to me or anyone else.\n\n"
+			. "Show me approval_url and user_code, and ask me to open the link, log in as the site administrator, check that the code on the page matches user_code, tick the permissions I want to give you, choose how long the access lasts and press Approve. Do not open the link yourself. Never show poll_code to me or anyone else.\n\n"
 			. "STEP 3 - Wait for my answer.\n"
 			. "Every \"interval\" seconds run: curl -s -X POST \"{$pollUrl}\" -H \"Content-Type: application/json\" -d '{\"request_id\":\"<request_id>\",\"poll_code\":\"<poll_code>\"}'\n"
 			. "Keep going until status is approved, denied or expired, for at most expires_in seconds. If it is denied or expired, tell me and stop. Do not ask again unless I tell you to.\n\n"

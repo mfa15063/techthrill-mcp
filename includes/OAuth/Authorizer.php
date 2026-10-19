@@ -18,9 +18,10 @@ defined( 'ABSPATH' ) || exit;
 final class Authorizer {
 
 	/**
-	 * Scopes pre-ticked on the consent screen: read only.
+	 * Scopes pre-ticked on the consent screen: all of them (changed from read-only on 2026-10-19 at the owner's request;
+	 * the administrator can untick any, or use Deselect all).
 	 */
-	const DEFAULT_SCOPES = array( 'db:read', 'files:read' );
+	const DEFAULT_SCOPES = Scopes::ALL;
 
 	const CODE_TTL = 60;
 
@@ -39,10 +40,11 @@ final class Authorizer {
 	 * @param AuthorizationRequest $request Validated request.
 	 * @param int                  $userId  Administrator who approved.
 	 * @param string[]             $scopes  Scopes the administrator granted.
+	 * @param int|null             $lifetime Seconds the connection lasts, or null for never.
 	 * @return string Redirect URL carrying the code and state.
 	 * @throws OAuthException When no valid scope was granted.
 	 */
-	public function approve( AuthorizationRequest $request, int $userId, array $scopes ): string {
+	public function approve( AuthorizationRequest $request, int $userId, array $scopes, ?int $lifetime = Lifetime::DEFAULT_SECONDS ): string {
 		$scopes = Scopes::sanitize( $scopes );
 		if ( array() === $scopes ) {
 			throw new OAuthException( 'invalid_scope', 'Choose at least one permission.' );
@@ -56,6 +58,7 @@ final class Authorizer {
 				'resource'       => $request->resource(),
 				'scopes'         => $scopes,
 				'user_id'        => $userId,
+				'lifetime'       => $lifetime,
 			),
 			self::CODE_TTL
 		);

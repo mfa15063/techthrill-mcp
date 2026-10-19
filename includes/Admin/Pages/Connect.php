@@ -254,7 +254,7 @@ final class Connect {
 			return;
 		}
 
-		echo '<p>' . esc_html__( 'Paste only this address into your AI app. You then approve the connection on this site. Nothing secret is copied, and read-only access is pre-selected.', 'techthrill-mcp' ) . '</p>';
+		echo '<p>' . esc_html__( 'Paste only this address into your AI app. You then approve the connection on this site. Nothing secret is copied. On the approval screen every permission is ticked by default, so untick what you do not want to allow (or use Deselect all), and choose how long the access lasts.', 'techthrill-mcp' ) . '</p>';
 		echo '<p class="ttm-copy-row"><code id="ttm-endpoint" class="ttm-token">' . esc_html( $url ) . '</code> ';
 		$this->copyButton( 'ttm-endpoint' );
 		echo '</p>';

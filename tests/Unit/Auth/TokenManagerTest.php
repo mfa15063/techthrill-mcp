@@ -252,4 +252,40 @@ class TokenManagerTest extends TestCase {
 		$this->assertNotNull( $mgr->verify( $bearer['token'] ) );
 		$this->assertNull( $mgr->refreshOAuth( 'ttr_' . str_repeat( 'a', 40 ), '' ) );
 	}
+
+	public function test_create_oauth_lifetime_choices(): void {
+		$repo = new InMemoryTokenRepository();
+		$mgr  = $this->manager( $repo );
+
+		$day = $mgr->createOAuth( 'ttc_a', 'C', array( 'db:read' ), 5, 86400 );
+		$this->assertSame( gmdate( 'Y-m-d H:i:s', $this->now + 86400 ), $repo->find( $day['id'] )['refresh_expires_at'] );
+
+		$never = $mgr->createOAuth( 'ttc_a', 'C', array( 'db:read' ), 5, null );
+		$this->assertNull( $repo->find( $never['id'] )['refresh_expires_at'] );
+
+		$default = $mgr->createOAuth( 'ttc_a', 'C', array( 'db:read' ), 5 );
+		$this->assertSame( gmdate( 'Y-m-d H:i:s', $this->now + 2592000 ), $repo->find( $default['id'] )['refresh_expires_at'] );
+	}
+
+	public function test_rotating_the_refresh_token_never_extends_the_grant(): void {
+		$repo  = new InMemoryTokenRepository();
+		$mgr   = $this->manager( $repo );
+		$grant = $mgr->createOAuth( 'ttc_a', 'C', array( 'db:read' ), 5, 86400 );
+		$end   = $repo->find( $grant['id'] )['refresh_expires_at'];
+
+		$this->now += 3700;
+		$next = $mgr->refreshOAuth( $grant['refresh_token'], 'ttc_a' );
+		$this->assertNotNull( $next );
+		$this->assertSame( $end, $repo->find( $grant['id'] )['refresh_expires_at'] );
+
+		$this->now += 86400;
+		$this->assertNull( $mgr->refreshOAuth( $next['refresh_token'], 'ttc_a' ), 'A one-day grant ends after one day even if it was used.' );
+	}
+
+	public function test_a_never_expiring_grant_keeps_refreshing(): void {
+		$mgr   = $this->manager( new InMemoryTokenRepository() );
+		$grant = $mgr->createOAuth( 'ttc_a', 'C', array( 'db:read' ), 5, null );
+		$this->now += 10 * 365 * 86400;
+		$this->assertNotNull( $mgr->refreshOAuth( $grant['refresh_token'], 'ttc_a' ) );
+	}
 }

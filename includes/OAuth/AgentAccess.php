@@ -142,9 +142,10 @@ final class AgentAccess {
 	 * @param string   $requestId Request ID.
 	 * @param int      $userId    Administrator who approved.
 	 * @param string[] $scopes    Granted scopes.
+	 * @param int|null $lifetime  Seconds the token lasts, or null for a token that never expires.
 	 * @throws OAuthException When the request is gone or no valid scope was chosen.
 	 */
-	public function approve( string $requestId, int $userId, array $scopes ): void {
+	public function approve( string $requestId, int $userId, array $scopes, ?int $lifetime = Lifetime::DEFAULT_SECONDS ): void {
 		$scopes = Scopes::sanitize( $scopes );
 		if ( array() === $scopes ) {
 			throw new OAuthException( 'invalid_scope', 'Choose at least one permission.' );
@@ -160,7 +161,7 @@ final class AgentAccess {
 			'AI agent: ' . $record['label'] . ' ' . gmdate( 'Y-m-d', $now ),
 			$scopes,
 			$userId,
-			gmdate( 'Y-m-d H:i:s', $now + self::TOKEN_DAYS * DAY_IN_SECONDS )
+			null === $lifetime ? null : gmdate( 'Y-m-d H:i:s', $now + $lifetime )
 		);
 
 		$record['status']     = 'approved';

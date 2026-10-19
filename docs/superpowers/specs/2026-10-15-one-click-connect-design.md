@@ -424,3 +424,13 @@ Requested by the owner after 1.2.0: copy a prompt, paste it into an AI, get a li
 - **Phishing:** anyone can start a request, so the approval page shows the agent's name, the short code the agent displayed and the requesting IP address, and tells the administrator to approve only when the code matches. Only a logged-in administrator can approve or deny.
 - **Limits:** 10 starts per IP per hour, 60 polls per IP per minute; wrong poll codes and unknown IDs are all answered `expired` and never reveal anything.
 - **Wrong client:** the prompt's first step tells an AI without tools to reply that it needs an agent that can run commands or a plan with custom connectors, and to stop.
+
+## 13. Addendum: approval screen defaults and expiry (release 1.4.0)
+
+Requested by the owner on 2026-10-19; it replaces the read-only default in §4.4 and §4.7 and the 30-day refresh life in §4.5 and §4.6.
+
+- **Defaults:** every permission checkbox is ticked by default on both approval screens (the OAuth one and the agent one from §12). A **Select all / Deselect all** checkbox sits at the top of the list; it is ticked when all boxes are, half-ticked when some are, and a few lines of inline script keep it in step (without script the boxes still work). The security trade-off is the owner's: `wp-cli` is full control of the site and is now pre-ticked, so the page still asks the administrator to choose.
+- **Expiry dropdown:** "Access expires after": 1 day, 1 week, 30 days (default) or Never expire. An unknown posted value falls back to 30 days, never to "never".
+- **Agent flow:** the choice sets `expires_at` of the bearer token created on approval (null for Never).
+- **OAuth flow:** the choice travels with the authorization code (`lifetime` in seconds, null for never; a code from before the dropdown has no key and gets 30 days) and becomes the grant's `refresh_expires_at`. It is absolute: rotating the refresh token no longer extends it, so a 1-day grant ends after one day. Never leaves `refresh_expires_at` null. Access tokens stay one hour.
+

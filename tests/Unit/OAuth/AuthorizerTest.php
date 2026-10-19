@@ -41,6 +41,18 @@ class AuthorizerTest extends TestCase {
 		$this->assertSame( 7, $payload['user_id'] );
 	}
 
+	public function test_approve_stores_the_chosen_lifetime_and_defaults_to_30_days(): void {
+		$a = new Authorizer( $this->codes );
+		$week = $this->query( $a->approve( $this->request(), 7, array( 'db:read' ), 604800 ) )['code'];
+		$this->assertSame( 604800, $this->codes->consume( $week )['lifetime'] );
+
+		$never = $this->query( $a->approve( $this->request(), 7, array( 'db:read' ), null ) )['code'];
+		$this->assertNull( $this->codes->consume( $never )['lifetime'] );
+
+		$default = $this->query( $a->approve( $this->request(), 7, array( 'db:read' ) ) )['code'];
+		$this->assertSame( 2592000, $this->codes->consume( $default )['lifetime'] );
+	}
+
 	public function test_approve_keeps_an_existing_query_string_on_the_redirect_uri(): void {
 		$url = ( new Authorizer( $this->codes ) )->approve( $this->request( 'http://localhost:1/cb?x=1' ), 7, array( 'db:read' ) );
 		$q   = $this->query( $url );
@@ -80,7 +92,7 @@ class AuthorizerTest extends TestCase {
 		$this->assertSame( 's', $q['state'] );
 	}
 
-	public function test_default_scopes_are_read_only(): void {
-		$this->assertSame( array( 'db:read', 'files:read' ), Authorizer::DEFAULT_SCOPES );
+	public function test_every_scope_is_ticked_by_default(): void {
+		$this->assertSame( array( 'wp-cli', 'db:read', 'db:write', 'files:read', 'files:write' ), Authorizer::DEFAULT_SCOPES );
 	}
 }

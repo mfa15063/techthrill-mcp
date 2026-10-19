@@ -28,8 +28,8 @@ class AgentConsentFlowTest extends TestCase {
 		return ( new AgentConsentFlow( $this->agent ) )->handle( 'GET', $id ?? $this->started['request_id'], $logged_in, $admin, false, 9, array(), '' );
 	}
 
-	private function post( string $decision, array $scopes = array( 'db:read' ), bool $nonce = true ): array {
-		return ( new AgentConsentFlow( $this->agent ) )->handle( 'POST', $this->started['request_id'], true, true, $nonce, 9, $scopes, $decision );
+	private function post( string $decision, array $scopes = array( 'db:read' ), bool $nonce = true, string $expires = '30d' ): array {
+		return ( new AgentConsentFlow( $this->agent ) )->handle( 'POST', $this->started['request_id'], true, true, $nonce, 9, $scopes, $decision, $expires );
 	}
 
 	public function test_logged_out_visitor_is_sent_to_login(): void {
@@ -42,12 +42,12 @@ class AgentConsentFlowTest extends TestCase {
 		$this->assertSame( 403, $r['status'] );
 	}
 
-	public function test_get_shows_the_request_with_read_only_defaults(): void {
+	public function test_get_shows_the_request_with_every_scope_ticked(): void {
 		$r = $this->get();
 		$this->assertSame( 'consent', $r['type'] );
 		$this->assertSame( 'Claude Code', $r['view']['label'] );
 		$this->assertSame( $this->started['user_code'], $r['view']['user_code'] );
-		$this->assertSame( array( 'db:read', 'files:read' ), $r['checked'] );
+		$this->assertSame( array( 'wp-cli', 'db:read', 'db:write', 'files:read', 'files:write' ), $r['checked'] );
 	}
 
 	public function test_unknown_or_expired_request_is_an_error(): void {
@@ -91,5 +91,30 @@ class AgentConsentFlowTest extends TestCase {
 		$this->post( 'approve' );
 		$this->assertSame( 404, $this->post( 'approve' )['status'] );
 		$this->assertCount( 1, $this->repo->all() );
+	}
+
+	public function test_the_chosen_expiry_sets_the_token_expiry(): void {
+		$expected = array(
+			'1d'    => 86400,
+			'1w'    => 604800,
+			'30d'   => 2592000,
+			'never' => null,
+		);
+		foreach ( $expected as $choice => $seconds ) {
+			$this->setUp();
+			$before = time();
+			$this->post( 'approve', array( 'db:read' ), true, $choice );
+			$row = $this->repo->all()[0];
+			if ( null === $seconds ) {
+				$this->assertNull( $row['expires_at'], $choice );
+			} else {
+				$this->assertEqualsWithDelta( $before + $seconds, strtotime( $row['expires_at'] . ' UTC' ), 5, $choice );
+			}
+		}
+	}
+
+	public function test_an_unknown_choice_falls_back_to_30_days_never_to_no_expiry(): void {
+		$this->post( 'approve', array( 'db:read' ), true, 'forever' );
+		$this->assertNotNull( $this->repo->all()[0]['expires_at'] );
 	}
 }

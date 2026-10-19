@@ -39,9 +39,10 @@ final class ConsentFlow {
 	 * @param int      $userId       Current user ID.
 	 * @param string[] $postedScopes Scopes ticked on the form.
 	 * @param string   $decision     approve or deny (POST only).
+	 * @param string   $expires      Expiry choice key from the dropdown (see Lifetime).
 	 * @return array{type:string,url?:string,message?:string,status?:int,request?:AuthorizationRequest,notice?:string,checked?:string[]}
 	 */
-	public function handle( string $method, array $params, bool $loggedIn, bool $isAdmin, bool $nonceValid, int $userId, array $postedScopes, string $decision ): array {
+	public function handle( string $method, array $params, bool $loggedIn, bool $isAdmin, bool $nonceValid, int $userId, array $postedScopes, string $decision, string $expires = Lifetime::DEFAULT_KEY ): array {
 		if ( ! $loggedIn ) {
 			return array( 'type' => 'login' );
 		}
@@ -86,7 +87,7 @@ final class ConsentFlow {
 		try {
 			return array(
 				'type' => 'redirect',
-				'url'  => $this->authorizer->approve( $request, $userId, $postedScopes ),
+				'url'  => $this->authorizer->approve( $request, $userId, $postedScopes, Lifetime::seconds( $expires ) ),
 			);
 		} catch ( OAuthException $e ) {
 			return array(

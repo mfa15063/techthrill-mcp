@@ -133,7 +133,9 @@ final class TokenEndpoint {
 			throw new OAuthException( 'invalid_target', 'The resource must be this MCP endpoint.' );
 		}
 
-		$grant = $this->tokens->createOAuth( $client_id, (string) $client['client_name'], (array) $payload['scopes'], (int) $payload['user_id'] );
+		// A code issued before the expiry dropdown existed has no lifetime key and gets the 30-day default.
+		$lifetime = array_key_exists( 'lifetime', $payload ) ? ( null === $payload['lifetime'] ? null : (int) $payload['lifetime'] ) : Lifetime::DEFAULT_SECONDS;
+		$grant    = $this->tokens->createOAuth( $client_id, (string) $client['client_name'], (array) $payload['scopes'], (int) $payload['user_id'], $lifetime );
 		$this->clients->markUsed( $client_id );
 
 		return $this->response( $grant );

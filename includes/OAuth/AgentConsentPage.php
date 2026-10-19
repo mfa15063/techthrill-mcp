@@ -60,6 +60,8 @@ final class AgentConsentPage {
 		$nonce    = $post && isset( $_POST['_wpnonce'] ) && is_string( $_POST['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_POST['_wpnonce'] ) ) : '';
 		$decision = $post && isset( $_POST['decision'] ) && is_string( $_POST['decision'] ) ? sanitize_key( wp_unslash( $_POST['decision'] ) ) : '';
 
+		$expires = $post && isset( $_POST['expires'] ) && is_string( $_POST['expires'] ) ? sanitize_key( wp_unslash( $_POST['expires'] ) ) : Lifetime::DEFAULT_KEY; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Verified through the flow.
+
 		$result = $this->flow->handle(
 			$post ? 'POST' : 'GET',
 			(string) $request_id,
@@ -68,7 +70,8 @@ final class AgentConsentPage {
 			'' !== $nonce && false !== wp_verify_nonce( $nonce, self::NONCE ),
 			get_current_user_id(),
 			Scopes::sanitize( $scopes ),
-			$decision
+			$decision,
+			$expires
 		);
 
 		switch ( $result['type'] ) {
@@ -76,7 +79,7 @@ final class AgentConsentPage {
 				wp_safe_redirect( wp_login_url( self::urlFor( (string) $request_id ) ) );
 				exit;
 			case 'consent':
-				$this->renderConsent( (string) $request_id, $result['view'], $result['checked'], $result['notice'] ?? '' );
+				$this->renderConsent( (string) $request_id, $result['view'], $result['checked'], $result['notice'] ?? '', $expires );
 				exit;
 			case 'done':
 				$this->renderDone( (string) $result['outcome'] );
@@ -98,8 +101,9 @@ final class AgentConsentPage {
 	 * @param array    $view      Label, code, IP and time of the request.
 	 * @param string[] $checked   Scopes ticked by default.
 	 * @param string   $notice    Optional message above the form.
+	 * @param string   $expires   Expiry choice selected.
 	 */
-	private function renderConsent( string $requestId, array $view, array $checked, string $notice ): void {
+	private function renderConsent( string $requestId, array $view, array $checked, string $notice, string $expires ): void {
 		$labels = array(
 			'wp-cli'      => __( 'Run WP-CLI commands (full control of the site)', 'techthrill-mcp' ),
 			'db:read'     => __( 'Read the database', 'techthrill-mcp' ),
@@ -121,16 +125,13 @@ final class AgentConsentPage {
 		echo '<span>' . esc_html( sprintf( __( 'Request came from IP address %s', 'techthrill-mcp' ), (string) $view['ip'] ) ) . '</span></p>';
 		echo '<p><strong>' . esc_html__( 'Only approve if the code above is exactly the one your AI agent just showed you.', 'techthrill-mcp' ) . '</strong> ';
 		/* translators: %s: administrator display name */
-		echo esc_html( sprintf( __( 'If you approve, it acts as you (%s) with only the permissions you tick, for 30 days. You can revoke it any time under TechThrill MCP > Tokens.', 'techthrill-mcp' ), $user->display_name ) ) . '</p>';
+		echo esc_html( sprintf( __( 'If you approve, it acts as you (%s) with only the permissions you tick, until the expiry you choose. You can revoke it any time under TechThrill MCP > Tokens.', 'techthrill-mcp' ), $user->display_name ) ) . '</p>';
 
 		echo '<form method="post" action="' . esc_url( self::urlFor( $requestId ) ) . '">';
 		echo '<input type="hidden" name="request" value="' . esc_attr( $requestId ) . '" />';
 		wp_nonce_field( self::NONCE );
-		echo '<fieldset><legend>' . esc_html__( 'Permissions', 'techthrill-mcp' ) . '</legend>';
-		foreach ( Scopes::ALL as $scope ) {
-			echo '<label><input type="checkbox" name="scopes[]" value="' . esc_attr( $scope ) . '"' . checked( in_array( $scope, $checked, true ), true, false ) . ' /> <code>' . esc_html( $scope ) . '</code> ' . esc_html( $labels[ $scope ] ?? '' ) . '</label>';
-		}
-		echo '</fieldset>';
+		echo Page::permissionsFieldset( $labels, $checked ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped inside the helper.
+		echo Page::expirySelect( $expires ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped inside the helper.
 		echo '<p class="ttm-actions"><button type="submit" name="decision" value="approve" class="ttm-approve">' . esc_html__( 'Approve', 'techthrill-mcp' ) . '</button> ';
 		echo '<button type="submit" name="decision" value="deny" class="ttm-deny">' . esc_html__( 'Deny', 'techthrill-mcp' ) . '</button></p>';
 		echo '</form>';

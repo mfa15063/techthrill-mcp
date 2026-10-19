@@ -34,9 +34,10 @@ final class AgentConsentFlow {
 	 * @param int      $userId       Current user ID.
 	 * @param string[] $postedScopes Scopes ticked on the form.
 	 * @param string   $decision     approve or deny (POST only).
+	 * @param string   $expires      Expiry choice key from the dropdown (see Lifetime).
 	 * @return array{type:string,message?:string,status?:int,view?:array,checked?:string[],notice?:string,outcome?:string}
 	 */
-	public function handle( string $method, string $requestId, bool $loggedIn, bool $isAdmin, bool $nonceValid, int $userId, array $postedScopes, string $decision ): array {
+	public function handle( string $method, string $requestId, bool $loggedIn, bool $isAdmin, bool $nonceValid, int $userId, array $postedScopes, string $decision, string $expires = Lifetime::DEFAULT_KEY ): array {
 		if ( ! $loggedIn ) {
 			return array( 'type' => 'login' );
 		}
@@ -71,7 +72,7 @@ final class AgentConsentFlow {
 		}
 
 		try {
-			$this->agent->approve( $requestId, $userId, $postedScopes );
+			$this->agent->approve( $requestId, $userId, $postedScopes, Lifetime::seconds( $expires ) );
 		} catch ( OAuthException $e ) {
 			return 'invalid_scope' === $e->error() ? $this->consent( $view, $e->description() ) : $this->error( $e->description(), 400 );
 		}

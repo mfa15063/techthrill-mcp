@@ -24,7 +24,7 @@ final class TokenManager {
 	const ACCESS_TTL = 3600;
 
 	/**
-	 * Lifetime of an OAuth refresh token, in seconds (30 days).
+	 * Default lifetime of an OAuth grant, in seconds (30 days); the consent screen can choose another.
 	 */
 	const REFRESH_TTL = 2592000;
 
@@ -109,10 +109,11 @@ final class TokenManager {
 	 * @param string   $clientName Client name shown on the Tokens page.
 	 * @param string[] $scopes     Granted scopes.
 	 * @param int      $user_id    Administrator who approved the grant.
+	 * @param int|null $lifetime   Seconds the whole grant lasts (default 30 days), or null for no expiry. Rotating the refresh token never extends it.
 	 * @return array{id:int,access_token:string,refresh_token:string,expires_in:int,scopes:string[]}
 	 * @throws \RuntimeException When the grant cannot be stored.
 	 */
-	public function createOAuth( string $clientId, string $clientName, array $scopes, int $user_id ): array {
+	public function createOAuth( string $clientId, string $clientName, array $scopes, int $user_id, ?int $lifetime = self::REFRESH_TTL ): array {
 		$access  = self::PREFIX . self::randomString( self::LENGTH );
 		$refresh = self::REFRESH_PREFIX . self::randomString( self::LENGTH );
 		$scopes  = Scopes::sanitize( $scopes );
@@ -132,7 +133,7 @@ final class TokenManager {
 				'kind'               => 'oauth',
 				'client_id'          => $clientId,
 				'refresh_hash'       => self::hash( $refresh ),
-				'refresh_expires_at' => gmdate( 'Y-m-d H:i:s', $now + self::REFRESH_TTL ),
+				'refresh_expires_at' => null === $lifetime ? null : gmdate( 'Y-m-d H:i:s', $now + $lifetime ),
 			)
 		);
 
@@ -150,7 +151,7 @@ final class TokenManager {
 	}
 
 	/**
-	 * Exchanges a refresh token for a new pair, replacing the old pair on the same row.
+	 * Exchanges a refresh token for a new pair, replacing the old pair on the same row. The grant's own expiry stays as chosen.
 	 *
 	 * Returns null when the token is unknown, malformed, expired, revoked, belongs to another client, or
 	 * when narrowing the scopes would leave none. A refresh token works once.
@@ -188,12 +189,11 @@ final class TokenManager {
 		$this->repo->update(
 			(int) $row['id'],
 			array(
-				'lookup'             => self::lookup( $access ),
-				'hash'               => self::hash( $access ),
-				'scopes'             => implode( ',', $scopes ),
-				'expires_at'         => gmdate( 'Y-m-d H:i:s', $now + self::ACCESS_TTL ),
-				'refresh_hash'       => self::hash( $refresh ),
-				'refresh_expires_at' => gmdate( 'Y-m-d H:i:s', $now + self::REFRESH_TTL ),
+				'lookup'       => self::lookup( $access ),
+				'hash'         => self::hash( $access ),
+				'scopes'       => implode( ',', $scopes ),
+				'expires_at'   => gmdate( 'Y-m-d H:i:s', $now + self::ACCESS_TTL ),
+				'refresh_hash' => self::hash( $refresh ),
 			)
 		);
 

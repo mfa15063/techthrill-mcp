@@ -4,7 +4,7 @@ Tags: mcp, claude, codex, ai, wp-cli
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.3.0
+Stable tag: 1.4.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -78,6 +78,11 @@ On multisite, deleting the plugin removes only the current site's tables.
 
 == Changelog ==
 
+= 1.4.0 =
+* Approval screens (the one for AI agents opened from the prompt link, and the one for Claude, ChatGPT, Claude Code and Codex): every permission is now ticked by default instead of only the two read ones, and a Select all / Deselect all checkbox sits at the top of the list. Untick what you do not want before you approve.
+* New "Access expires after" dropdown: 1 day, 1 week, 30 days (selected by default) or Never expire. It sets when the connection ends; an OAuth connection's expiry is fixed when you approve and renewing its refresh token does not extend it.
+* Because every permission is ticked by default (including `wp-cli`, which is full control of the site), check the boxes before you press Approve.
+
 = 1.3.0 =
 * New `media_upload` tool: uploads an image or other allowed file to the Media Library from base64 data (name, content, optional title, alt text, caption, description and post to attach to). It uses WordPress's own upload checks and thumbnail generation, so it works on hosts where WP-CLI is blocked. Limit 20 MB.
 
@@ -93,7 +98,7 @@ On multisite, deleting the plugin removes only the current site's tables.
 
 = 1.2.0 =
 * One-paste connect: the plugin is now a small OAuth 2.1 authorization server for its own MCP endpoint. Paste only the endpoint URL into Claude, ChatGPT (developer mode), Claude Code or Codex, approve one consent screen and you are connected. No token to copy.
-* The consent screen pre-selects read-only permissions (`db:read`, `files:read`); you choose what to grant.
+* The consent screen lets you choose what to grant and for how long (see 1.4.0 for the defaults).
 * OAuth grants appear on the Tokens page as `OAuth: <client>` and can be revoked there. Access tokens last one hour; refresh tokens are single use and last 30 days.
 * Connect page: new "Connect with one paste" card with steps for Claude, ChatGPT, Claude Code and Codex, plus Cursor and VS Code install links that carry no secret. The bearer-token form, Quick connect and Custom connection moved under "Advanced: connect with a bearer token".
 * Requires pretty permalinks and HTTPS for the one-paste flow; the bearer-token flow is unchanged and works everywhere.

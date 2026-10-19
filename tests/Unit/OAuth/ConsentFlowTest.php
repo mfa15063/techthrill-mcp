@@ -51,8 +51,8 @@ class ConsentFlowTest extends TestCase {
 		return $this->flow()->handle( 'GET', $params, $logged_in, $admin, false, 9, array(), '' );
 	}
 
-	private function post( array $params, string $decision, array $scopes = array( 'db:read' ), bool $nonce = true ): array {
-		return $this->flow()->handle( 'POST', $params, true, true, $nonce, 9, $scopes, $decision );
+	private function post( array $params, string $decision, array $scopes = array( 'db:read' ), bool $nonce = true, string $expires = '30d' ): array {
+		return $this->flow()->handle( 'POST', $params, true, true, $nonce, 9, $scopes, $decision, $expires );
 	}
 
 	private function query( string $url ): array {
@@ -70,16 +70,16 @@ class ConsentFlowTest extends TestCase {
 		$this->assertSame( 403, $r['status'] );
 	}
 
-	public function test_get_shows_consent_with_read_only_defaults(): void {
+	public function test_get_shows_consent_with_every_scope_ticked(): void {
 		$r = $this->get( $this->params() );
 		$this->assertSame( 'consent', $r['type'] );
-		$this->assertSame( array( 'db:read', 'files:read' ), $r['checked'] );
+		$this->assertSame( array( 'wp-cli', 'db:read', 'db:write', 'files:read', 'files:write' ), $r['checked'] );
 		$this->assertSame( 'Claude Code', $r['request']->client()['client_name'] );
 	}
 
-	public function test_defaults_stay_read_only_even_when_the_client_asks_for_more(): void {
-		$r = $this->get( $this->params( array( 'scope' => 'wp-cli db:write files:write' ) ) );
-		$this->assertSame( array( 'db:read', 'files:read' ), $r['checked'] );
+	public function test_every_scope_is_ticked_whatever_the_client_asked_for(): void {
+		$r = $this->get( $this->params( array( 'scope' => 'db:read' ) ) );
+		$this->assertSame( array( 'wp-cli', 'db:read', 'db:write', 'files:read', 'files:write' ), $r['checked'] );
 	}
 
 	public function test_unknown_client_renders_an_error_page_and_never_redirects(): void {
@@ -134,5 +134,13 @@ class ConsentFlowTest extends TestCase {
 
 	public function test_unknown_decision_is_an_error(): void {
 		$this->assertSame( 'error', $this->post( $this->params(), 'maybe' )['type'] );
+	}
+
+	public function test_the_chosen_expiry_is_stored_with_the_code(): void {
+		foreach ( array( '1d' => 86400, '1w' => 604800, '30d' => 2592000, 'never' => null, 'bogus' => 2592000 ) as $choice => $seconds ) {
+			$r       = $this->post( $this->params(), 'approve', array( 'db:read' ), true, $choice );
+			$payload = $this->codes->consume( $this->query( $r['url'] )['code'] );
+			$this->assertSame( $seconds, $payload['lifetime'], $choice );
+		}
 	}
 }

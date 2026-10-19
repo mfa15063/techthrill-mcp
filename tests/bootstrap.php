@@ -134,3 +134,8 @@ if ( ! function_exists( 'wp_strip_all_tags' ) ) {
 if ( ! defined( 'DAY_IN_SECONDS' ) ) {
 	define( 'DAY_IN_SECONDS', 86400 );
 }
+if ( ! function_exists( 'esc_attr' ) ) {
+	function esc_attr( $text ) {
+		return htmlspecialchars( (string) $text, ENT_QUOTES );
+	}
+}

@@ -74,6 +74,8 @@ final class ConsentPage {
 		$nonce    = $post && isset( $_POST['_wpnonce'] ) && is_string( $_POST['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_POST['_wpnonce'] ) ) : '';
 		$decision = $post && isset( $_POST['decision'] ) && is_string( $_POST['decision'] ) ? sanitize_key( wp_unslash( $_POST['decision'] ) ) : '';
 
+		$expires = $post && isset( $_POST['expires'] ) && is_string( $_POST['expires'] ) ? sanitize_key( wp_unslash( $_POST['expires'] ) ) : Lifetime::DEFAULT_KEY; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Verified through the flow.
+
 		$result = $this->flow->handle(
 			$post ? 'POST' : 'GET',
 			$params,
@@ -82,7 +84,8 @@ final class ConsentPage {
 			'' !== $nonce && false !== wp_verify_nonce( $nonce, self::NONCE ),
 			get_current_user_id(),
 			Scopes::sanitize( $scopes ),
-			$decision
+			$decision,
+			$expires
 		);
 
 		switch ( $result['type'] ) {
@@ -94,7 +97,7 @@ final class ConsentPage {
 				wp_redirect( $result['url'] ); // phpcs:ignore WordPress.Security.SafeRedirect.wp_redirect_wp_redirect
 				exit;
 			case 'consent':
-				$this->renderConsent( $result['request'], $result['checked'], $result['notice'] ?? '' );
+				$this->renderConsent( $result['request'], $result['checked'], $result['notice'] ?? '', $expires );
 				exit;
 			default:
 				$this->renderError( (string) ( $result['message'] ?? '' ), (int) ( $result['status'] ?? 400 ) );
@@ -108,8 +111,9 @@ final class ConsentPage {
 	 * @param AuthorizationRequest $request Validated request.
 	 * @param string[]             $checked Scopes ticked by default.
 	 * @param string               $notice  Optional message above the form.
+	 * @param string               $expires Expiry choice selected.
 	 */
-	private function renderConsent( AuthorizationRequest $request, array $checked, string $notice ): void {
+	private function renderConsent( AuthorizationRequest $request, array $checked, string $notice, string $expires ): void {
 		$labels = array(
 			'wp-cli'      => __( 'Run WP-CLI commands (full control of the site)', 'techthrill-mcp' ),
 			'db:read'     => __( 'Read the database', 'techthrill-mcp' ),
@@ -136,11 +140,8 @@ final class ConsentPage {
 			echo '<input type="hidden" name="' . esc_attr( $name ) . '" value="' . esc_attr( $value ) . '" />';
 		}
 		wp_nonce_field( self::NONCE );
-		echo '<fieldset><legend>' . esc_html__( 'Permissions', 'techthrill-mcp' ) . '</legend>';
-		foreach ( Scopes::ALL as $scope ) {
-			echo '<label><input type="checkbox" name="scopes[]" value="' . esc_attr( $scope ) . '"' . checked( in_array( $scope, $checked, true ), true, false ) . ' /> <code>' . esc_html( $scope ) . '</code> ' . esc_html( $labels[ $scope ] ?? '' ) . '</label>';
-		}
-		echo '</fieldset>';
+		echo Page::permissionsFieldset( $labels, $checked ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped inside the helper.
+		echo Page::expirySelect( $expires ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped inside the helper.
 		echo '<p class="ttm-actions"><button type="submit" name="decision" value="approve" class="ttm-approve">' . esc_html__( 'Approve', 'techthrill-mcp' ) . '</button> ';
 		echo '<button type="submit" name="decision" value="deny" class="ttm-deny">' . esc_html__( 'Deny', 'techthrill-mcp' ) . '</button></p>';
 		echo '</form>';

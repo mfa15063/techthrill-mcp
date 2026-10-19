@@ -238,4 +238,30 @@ class TokenEndpointTest extends TestCase {
 		$this->assertFalse( $auth->authenticate( 'Bearer ' . $grant['access_token'] )->isOk(), 'The access token expires after an hour.' );
 		$this->assertSame( 'invalid', $auth->authenticate( 'Bearer ' . $grant['access_token'] )->reason() );
 	}
+
+	public function test_the_expiry_chosen_on_the_consent_screen_becomes_the_grant_expiry(): void {
+		$day = $this->endpoint()->handle( $this->form( $this->code( array( 'lifetime' => 86400 ) ) ), '1.1.1.1' );
+		$this->assertSame( 200, $day['status'] );
+
+		$never = $this->endpoint()->handle( $this->form( $this->code( array( 'lifetime' => null ) ) ), '1.1.1.1' );
+		$this->assertSame( 200, $never['status'] );
+
+		$rows = $this->repo->all();
+		$this->assertSame( gmdate( 'Y-m-d H:i:s', $this->now + 86400 ), $rows[0]['refresh_expires_at'] );
+		$this->assertNull( $rows[1]['refresh_expires_at'] );
+	}
+
+	public function test_a_code_without_a_lifetime_gets_the_30_day_default(): void {
+		$payload = array(
+			'client_id'      => 'ttc_a',
+			'redirect_uri'   => self::CB,
+			'code_challenge' => Pkce::challengeFor( $this->verifier ),
+			'resource'       => self::RESOURCE,
+			'scopes'         => array( 'db:read' ),
+			'user_id'        => 5,
+		);
+		$code = $this->codes->issue( $payload, 60 );
+		$this->assertSame( 200, $this->endpoint()->handle( $this->form( $code ), '1.1.1.1' )['status'] );
+		$this->assertSame( gmdate( 'Y-m-d H:i:s', $this->now + 2592000 ), $this->repo->all()[0]['refresh_expires_at'] );
+	}
 }
