@@ -50,6 +50,7 @@ final class Menu {
 
 		// The create form posts to the plugin page itself so the new token is rendered once, never stored.
 		add_action( 'load-' . self::HOOK_SUFFIX, array( $this->connect, 'maybeHandleCreate' ) );
+		add_action( 'load-' . self::HOOK_SUFFIX, array( $this->tokens, 'maybeHandleBulk' ) );
 		add_action( 'admin_post_techthrill_mcp_install_phar', array( $this->connect, 'handleInstallPhar' ) );
 		add_action( 'admin_post_techthrill_mcp_revoke_token', array( $this->tokens, 'handleRevoke' ) );
 		add_action( 'admin_post_techthrill_mcp_delete_token', array( $this->tokens, 'handleDelete' ) );

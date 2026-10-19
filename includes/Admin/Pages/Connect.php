@@ -209,7 +209,7 @@ final class Connect {
 			__( 'Copy the prompt below.', 'techthrill-mcp' ),
 			__( 'Paste it into your AI agent.', 'techthrill-mcp' ),
 			__( 'Open the link the agent shows you, check the code, tick the permissions and press Approve.', 'techthrill-mcp' ),
-			__( 'Done. The agent gets access for 30 days. Revoke it any time on the Tokens tab.', 'techthrill-mcp' ),
+			__( 'Done. The agent saves the connection and keeps using it, without asking again, until the expiry you chose. Revoke it any time on the Tokens tab.', 'techthrill-mcp' ),
 		);
 
 		echo '<div class="ttm-card ttm-agent-prompt"><h2>' . esc_html__( 'Connect an AI agent with a prompt', 'techthrill-mcp' ) . '</h2>';

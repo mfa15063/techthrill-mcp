@@ -92,7 +92,7 @@ class TokenEndpointTest extends TestCase {
 		$this->assertSame( 200, $r['status'] );
 		$b = $r['body'];
 		$this->assertSame( 'Bearer', $b['token_type'] );
-		$this->assertSame( 3600, $b['expires_in'] );
+		$this->assertSame( 2592000, $b['expires_in'] );
 		$this->assertSame( 'db:read files:read', $b['scope'] );
 		$this->assertMatchesRegularExpression( '/^ttm_[A-Za-z0-9]{40}$/', $b['access_token'] );
 		$this->assertMatchesRegularExpression( '/^ttr_[A-Za-z0-9]{40}$/', $b['refresh_token'] );
@@ -204,7 +204,26 @@ class TokenEndpointTest extends TestCase {
 
 	public function test_refresh_requires_fields_and_a_known_client(): void {
 		$this->assertSame( 'invalid_request', $this->endpoint()->handle( array( 'grant_type' => 'refresh_token' ), '1.1.1.1' )['body']['error'] );
-		$this->assertSame( 401, $this->endpoint()->handle( array( 'grant_type' => 'refresh_token', 'refresh_token' => 'ttr_x', 'client_id' => 'nope' ), '1.1.1.1' )['status'] );
+		$unknown = $this->endpoint()->handle( array( 'grant_type' => 'refresh_token', 'refresh_token' => 'ttr_x', 'client_id' => 'nope' ), '1.1.1.1' );
+		$this->assertSame( 'invalid_grant', $unknown['body']['error'], 'The refresh token, not a client record, decides.' );
+	}
+
+	public function test_refresh_works_even_when_the_client_record_is_gone(): void {
+		$first = $this->exchange();
+		$this->clients->delete( 'ttc_a' );
+
+		$r = $this->endpoint()->handle( array( 'grant_type' => 'refresh_token', 'refresh_token' => $first['refresh_token'], 'client_id' => 'ttc_a' ), '1.1.1.1' );
+		$this->assertSame( 200, $r['status'], 'A missing client record must not force a new authorization.' );
+	}
+
+	public function test_a_never_expiring_grant_reports_a_very_long_expires_in(): void {
+		$r = $this->endpoint()->handle( $this->form( $this->code( array( 'lifetime' => null ) ) ), '1.1.1.1' );
+		$this->assertSame( 315360000, $r['body']['expires_in'] );
+		$this->assertNull( $this->repo->all()[0]['expires_at'] );
+
+		$this->now += 5 * 365 * 86400;
+		$auth = new Authenticator( $this->tokens, new RateLimiter( 100, new InMemoryRateLimitStore(), fn() => $this->now ), fn( int $u ) => true );
+		$this->assertTrue( $auth->authenticate( 'Bearer ' . $r['body']['access_token'] )->isOk() );
 	}
 
 	public function test_rate_limit_returns_429_with_retry_after(): void {
@@ -235,7 +254,10 @@ class TokenEndpointTest extends TestCase {
 		$this->assertSame( 5, $result->row()['user_id'] );
 
 		$this->now += 3601;
-		$this->assertFalse( $auth->authenticate( 'Bearer ' . $grant['access_token'] )->isOk(), 'The access token expires after an hour.' );
+		$this->assertTrue( $auth->authenticate( 'Bearer ' . $grant['access_token'] )->isOk(), 'Still valid after an hour: the access token lasts as long as the grant.' );
+
+		$this->now += 30 * 86400;
+		$this->assertFalse( $auth->authenticate( 'Bearer ' . $grant['access_token'] )->isOk(), 'The access token ends when the grant ends.' );
 		$this->assertSame( 'invalid', $auth->authenticate( 'Bearer ' . $grant['access_token'] )->reason() );
 	}
 

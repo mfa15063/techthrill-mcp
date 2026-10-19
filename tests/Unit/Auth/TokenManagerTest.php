@@ -167,7 +167,7 @@ class TokenManagerTest extends TestCase {
 
 		$this->assertMatchesRegularExpression( '/^ttm_[A-Za-z0-9]{40}$/', $result['access_token'] );
 		$this->assertMatchesRegularExpression( '/^ttr_[A-Za-z0-9]{40}$/', $result['refresh_token'] );
-		$this->assertSame( 3600, $result['expires_in'] );
+		$this->assertSame( 2592000, $result['expires_in'], 'The access token lasts as long as the grant.' );
 		$this->assertSame( array( 'db:read', 'files:read' ), $result['scopes'] );
 
 		$row = $repo->find( $result['id'] );
@@ -176,7 +176,7 @@ class TokenManagerTest extends TestCase {
 		$this->assertSame( 'OAuth: Claude', $row['name'] );
 		$this->assertSame( 5, $row['user_id'] );
 		$this->assertSame( TokenManager::hash( $result['refresh_token'] ), $row['refresh_hash'] );
-		$this->assertSame( gmdate( 'Y-m-d H:i:s', $this->now + 3600 ), $row['expires_at'] );
+		$this->assertSame( gmdate( 'Y-m-d H:i:s', $this->now + 2592000 ), $row['expires_at'] );
 		$this->assertSame( gmdate( 'Y-m-d H:i:s', $this->now + 2592000 ), $row['refresh_expires_at'] );
 		$json = json_encode( $row );
 		$this->assertStringNotContainsString( $result['access_token'], $json );
@@ -188,8 +188,10 @@ class TokenManagerTest extends TestCase {
 		$result = $mgr->createOAuth( 'ttc_client1', 'Claude', array( 'db:read' ), 5 );
 
 		$this->assertNotNull( $mgr->verify( $result['access_token'] ) );
-		$this->now += 3601;
-		$this->assertNull( $mgr->verify( $result['access_token'] ) );
+		$this->now += 29 * 86400;
+		$this->assertNotNull( $mgr->verify( $result['access_token'] ), 'Still valid well past an hour.' );
+		$this->now += 2 * 86400;
+		$this->assertNull( $mgr->verify( $result['access_token'] ), 'Expired once the 30 days are over.' );
 	}
 
 	public function test_refresh_rotates_both_tokens_in_place(): void {
@@ -208,7 +210,8 @@ class TokenManagerTest extends TestCase {
 		$this->assertNull( $mgr->refreshOAuth( $old['refresh_token'], 'ttc_client1' ), 'A refresh token works once.' );
 		$this->assertNotNull( $mgr->verify( $new['access_token'] ) );
 		$this->assertCount( 1, $repo->all() );
-		$this->assertSame( gmdate( 'Y-m-d H:i:s', $this->now + 3600 ), $repo->find( $old['id'] )['expires_at'] );
+		$this->assertSame( $repo->find( $old['id'] )['refresh_expires_at'], $repo->find( $old['id'] )['expires_at'], 'The new access token ends when the grant ends.' );
+		$this->assertSame( 2592000 - 4000, $new['expires_in'] );
 	}
 
 	public function test_refresh_with_wrong_client_or_unknown_token_returns_null(): void {

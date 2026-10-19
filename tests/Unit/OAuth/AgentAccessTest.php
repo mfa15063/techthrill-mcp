@@ -82,7 +82,7 @@ class AgentAccessTest extends TestCase {
 		$this->assertSame( 'Bearer', $p['token_type'] );
 		$this->assertSame( 'db:read files:read', $p['scope'] );
 		$this->assertMatchesRegularExpression( '/^ttm_[A-Za-z0-9]{40}$/', $p['access_token'] );
-		$this->assertSame( 2592000, $p['expires_in'] );
+		$this->assertSame( gmdate( 'Y-m-d\TH:i:s\Z', $this->now + 2592000 ), $p['expires_at'] );
 
 		$row = $this->tokens->verify( $p['access_token'] );
 		$this->assertSame( 5, $row['user_id'] );
@@ -203,5 +203,21 @@ class AgentAccessTest extends TestCase {
 		$this->assertSame( 1, $a->prune() );
 		$this->assertNull( $a->find( $old['request_id'] ) );
 		$this->assertNotNull( $a->find( $live['request_id'] ) );
+	}
+
+	public function test_the_chosen_lifetime_is_reported_so_the_agent_knows_when_to_ask_again(): void {
+		$a = $this->agent();
+		$r = $a->start( 'x', '1.1.1.1' );
+		$a->approve( $r['request_id'], 5, array( 'db:read' ), 86400 );
+		$p = $a->poll( $r['request_id'], $r['poll_code'], '1.1.1.1' );
+		$this->assertSame( gmdate( 'Y-m-d\TH:i:s\Z', $this->now + 86400 ), $p['expires_at'] );
+		$this->assertSame( gmdate( 'Y-m-d H:i:s', $this->now + 86400 ), $this->repo->all()[0]['expires_at'] );
+
+		$n = $a->start( 'y', '1.1.1.2' );
+		$a->approve( $n['request_id'], 5, array( 'db:read' ), null );
+		$never = $a->poll( $n['request_id'], $n['poll_code'], '1.1.1.2' );
+		$this->assertNull( $never['expires_at'] );
+		$this->assertArrayHasKey( 'expires_at', $never );
+		$this->assertNull( $this->repo->all()[1]['expires_at'] );
 	}
 }

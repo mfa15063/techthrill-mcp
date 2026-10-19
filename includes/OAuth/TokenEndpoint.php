@@ -153,10 +153,9 @@ final class TokenEndpoint {
 		if ( '' === $refresh || '' === $client_id ) {
 			throw new OAuthException( 'invalid_request', 'refresh_token and client_id are required.' );
 		}
-		if ( null === $this->clients->find( $client_id ) ) {
-			throw new OAuthException( 'invalid_client', 'Unknown client.', 401 );
-		}
-
+		// The refresh token is bound to its client inside the token row, so the client record is not looked up here.
+		// Looking it up would make a refresh depend on fetching the client's metadata document again, and a failed
+		// fetch would send the user back through a full authorization.
 		$narrow = null;
 		$scope  = $this->field( $form, 'scope' );
 		if ( '' !== $scope ) {

@@ -4,7 +4,7 @@ Tags: mcp, claude, codex, ai, wp-cli
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.4.0
+Stable tag: 1.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -77,6 +77,11 @@ Long WP-CLI runs may be cut short by the host's PHP `max_execution_time` or by a
 On multisite, deleting the plugin removes only the current site's tables.
 
 == Changelog ==
+
+= 1.5.0 =
+* Fixes for being asked to authorize again and again. The AI agent prompt now makes the agent save its approved connection in a private file and reuse it (it asks again only when the file is missing, the server answers 401, or it needs a permission you did not give). OAuth access tokens now last as long as the expiry you chose (1 day, 1 week, 30 days or never) instead of one hour, a refresh no longer needs the client's metadata document to be fetched again, and a client whose document worked before keeps working for up to 30 days if the document cannot be fetched.
+* Tokens tab: checkboxes, a select-all checkbox and the bulk actions Revoke Selected and Delete Selected, protected by a nonce and the manage_options capability.
+* The agent approval screen reports the token's expiry date to the agent.
 
 = 1.4.0 =
 * Approval screens (the one for AI agents opened from the prompt link, and the one for Claude, ChatGPT, Claude Code and Codex): every permission is now ticked by default instead of only the two read ones, and a Select all / Deselect all checkbox sits at the top of the list. Untick what you do not want before you approve.

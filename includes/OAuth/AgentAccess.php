@@ -34,11 +34,6 @@ final class AgentAccess {
 
 	const INTERVAL = 3;
 
-	/**
-	 * Lifetime of the token an approval creates, in days.
-	 */
-	const TOKEN_DAYS = 30;
-
 	const START_LIMIT = 10;
 
 	const START_WINDOW = 3600;
@@ -167,6 +162,7 @@ final class AgentAccess {
 		$record['status']     = 'approved';
 		$record['scopes']     = $scopes;
 		$record['token']      = $created['token'];
+		$record['token_ends'] = null === $lifetime ? null : gmdate( 'Y-m-d\TH:i:s\Z', $now + $lifetime );
 		$record['expires_at'] = $now + self::COLLECT_TTL;
 		$this->options->update( self::PREFIX . $requestId, $record );
 	}
@@ -191,7 +187,7 @@ final class AgentAccess {
 	 * @param string $requestId Request ID.
 	 * @param string $pollCode  Secret poll code from start().
 	 * @param string $ip        Client IP address.
-	 * @return array{status:string,access_token?:string,token_type?:string,scope?:string,expires_in?:int,interval?:int}
+	 * @return array{status:string,access_token?:string,token_type?:string,scope?:string,expires_at?:string|null,interval?:int}
 	 * @throws OAuthException When rate limited.
 	 */
 	public function poll( string $requestId, string $pollCode, string $ip ): array {
@@ -230,7 +226,9 @@ final class AgentAccess {
 			'access_token' => (string) $record['token'],
 			'token_type'   => 'Bearer',
 			'scope'        => implode( ' ', (array) $record['scopes'] ),
-			'expires_in'   => self::TOKEN_DAYS * DAY_IN_SECONDS,
+			// When the token stops working (UTC, ISO 8601), or null for a token that never expires. The agent saves it
+			// next to the token so it knows when it has to ask again.
+			'expires_at'   => $record['token_ends'] ?? null,
 		);
 	}
 

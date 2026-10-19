@@ -176,4 +176,36 @@ class ClientMetadataFetcherTest extends TestCase {
 		( new ClientResolver( $this->store, $this->fetcher() ) )->markUsed( 'ttc_missing' );
 		$this->assertNull( $this->store->find( 'ttc_missing' ) );
 	}
+
+	public function test_a_known_client_keeps_working_when_its_document_cannot_be_fetched_again(): void {
+		$f = $this->fetcher();
+		$f->resolve( self::URL );
+
+		$this->now += ClientMetadataFetcher::CACHE_TTL + 1;
+		$this->response = null;
+		$client = $f->resolve( self::URL );
+		$this->assertSame( 'Example App', $client['client_name'] );
+		$this->assertSame( 2, $this->calls, 'It tried to refresh the document first.' );
+	}
+
+	public function test_a_stale_client_is_not_used_forever(): void {
+		$f = $this->fetcher();
+		$f->resolve( self::URL );
+
+		$this->now += ClientMetadataFetcher::STALE_TTL + 1;
+		$this->response = null;
+		$this->expectException( OAuthException::class );
+		$f->resolve( self::URL );
+	}
+
+	public function test_a_document_that_now_fails_validation_is_not_trusted_from_the_cache_forever(): void {
+		$f = $this->fetcher();
+		$f->resolve( self::URL );
+
+		$this->now += ClientMetadataFetcher::CACHE_TTL + 1;
+		$this->response = $this->ok( $this->doc( array( 'redirect_uris' => array( 'https://evil.com/cb' ) ) ) );
+		// Within the stale window the previous, validated record is still served; the bad document is never stored.
+		$client = $f->resolve( self::URL );
+		$this->assertSame( array( 'http://localhost:53682/callback' ), $client['redirect_uris'] );
+	}
 }

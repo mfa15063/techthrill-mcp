@@ -19,14 +19,14 @@ final class TokenManager {
 	const REFRESH_PREFIX = 'ttr_';
 
 	/**
-	 * Lifetime of an OAuth access token, in seconds.
-	 */
-	const ACCESS_TTL = 3600;
-
-	/**
 	 * Default lifetime of an OAuth grant, in seconds (30 days); the consent screen can choose another.
 	 */
 	const REFRESH_TTL = 2592000;
+
+	/**
+	 * The expires_in reported to clients for a grant that never expires (ten years). OAuth clients expect a number.
+	 */
+	const NEVER_EXPIRES_IN = 315360000;
 
 	const LENGTH = 40;
 
@@ -103,7 +103,8 @@ final class TokenManager {
 	}
 
 	/**
-	 * Creates an OAuth grant: a one-hour access token (a normal bearer token) and a 30-day single-use refresh token.
+	 * Creates an OAuth grant: an access token (a normal bearer token) and a single-use refresh token. The access token lasts
+	 * as long as the grant, so a client keeps working for the whole period the administrator chose without having to refresh.
 	 *
 	 * @param string   $clientId   OAuth client the grant belongs to.
 	 * @param string   $clientName Client name shown on the Tokens page.
@@ -127,7 +128,7 @@ final class TokenManager {
 				'scopes'             => implode( ',', $scopes ),
 				'user_id'            => $user_id,
 				'created_at'         => gmdate( 'Y-m-d H:i:s', $now ),
-				'expires_at'         => gmdate( 'Y-m-d H:i:s', $now + self::ACCESS_TTL ),
+				'expires_at'         => null === $lifetime ? null : gmdate( 'Y-m-d H:i:s', $now + $lifetime ),
 				'last_used_at'       => null,
 				'revoked_at'         => null,
 				'kind'               => 'oauth',
@@ -145,7 +146,7 @@ final class TokenManager {
 			'id'            => $id,
 			'access_token'  => $access,
 			'refresh_token' => $refresh,
-			'expires_in'    => self::ACCESS_TTL,
+			'expires_in'    => null === $lifetime ? self::NEVER_EXPIRES_IN : $lifetime,
 			'scopes'        => $scopes,
 		);
 	}
@@ -186,13 +187,17 @@ final class TokenManager {
 		$refresh = self::REFRESH_PREFIX . self::randomString( self::LENGTH );
 		$now     = $this->now();
 
+		// The new access token ends when the grant ends, exactly like the first one.
+		$grant_end = empty( $row['refresh_expires_at'] ) ? null : (string) $row['refresh_expires_at'];
+		$remaining = null === $grant_end ? self::NEVER_EXPIRES_IN : max( 1, (int) strtotime( $grant_end . ' UTC' ) - $now );
+
 		$this->repo->update(
 			(int) $row['id'],
 			array(
 				'lookup'       => self::lookup( $access ),
 				'hash'         => self::hash( $access ),
 				'scopes'       => implode( ',', $scopes ),
-				'expires_at'   => gmdate( 'Y-m-d H:i:s', $now + self::ACCESS_TTL ),
+				'expires_at'   => $grant_end,
 				'refresh_hash' => self::hash( $refresh ),
 			)
 		);
@@ -201,7 +206,7 @@ final class TokenManager {
 			'id'            => (int) $row['id'],
 			'access_token'  => $access,
 			'refresh_token' => $refresh,
-			'expires_in'    => self::ACCESS_TTL,
+			'expires_in'    => $remaining,
 			'scopes'        => $scopes,
 		);
 	}

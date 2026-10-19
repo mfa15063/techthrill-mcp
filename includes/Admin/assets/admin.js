@@ -98,6 +98,25 @@
 		}
 	} );
 
+	// Ask before a bulk revoke or delete. The chosen action is in the top or the bottom dropdown.
+	document.addEventListener( 'submit', function ( event ) {
+		var form = event.target;
+		if ( ! form || ! form.classList || ! form.classList.contains( 'ttm-bulk-form' ) ) {
+			return;
+		}
+		var action = '';
+		[ 'action', 'action2' ].forEach( function ( name ) {
+			var field = form.elements[ name ];
+			if ( field && field.value && field.value !== '-1' ) {
+				action = field.value;
+			}
+		} );
+		var message = action ? form.getAttribute( 'data-ttm-confirm-' + action ) : '';
+		if ( message && ! window.confirm( message ) ) {
+			event.preventDefault();
+		}
+	} );
+
 	document.addEventListener( 'change', function ( event ) {
 		if ( event.target && event.target.id === 'ttm-expiry' ) {
 			syncExpiry();

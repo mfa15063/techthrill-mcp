@@ -38,6 +38,7 @@ final class TokensListTable extends \WP_List_Table {
 
 	public function get_columns() {
 		return array(
+			'cb'           => '<input type="checkbox" />',
 			'name'         => __( 'Name', 'techthrill-mcp' ),
 			'scopes'       => __( 'Permissions', 'techthrill-mcp' ),
 			'created_by'   => __( 'Created by', 'techthrill-mcp' ),
@@ -46,6 +47,30 @@ final class TokensListTable extends \WP_List_Table {
 			'last_used_at' => __( 'Last used', 'techthrill-mcp' ),
 			'status'       => __( 'Status', 'techthrill-mcp' ),
 		);
+	}
+
+	/**
+	 * Bulk actions in the standard WordPress dropdown above and below the table.
+	 */
+	protected function get_bulk_actions() {
+		return array(
+			TokenBulk::REVOKE => __( 'Revoke Selected', 'techthrill-mcp' ),
+			TokenBulk::DELETE => __( 'Delete Selected', 'techthrill-mcp' ),
+		);
+	}
+
+	/**
+	 * The row checkbox; the header checkbox that selects every row is added by WordPress from the 'cb' column.
+	 *
+	 * @param array $item Token row.
+	 */
+	protected function column_cb( $item ) {
+		$id = (int) $item['id'];
+
+		return '<label class="screen-reader-text" for="ttm-token-' . esc_attr( (string) $id ) . '">'
+			/* translators: %s: token name */
+			. esc_html( sprintf( __( 'Select %s', 'techthrill-mcp' ), (string) $item['name'] ) ) . '</label>'
+			. '<input type="checkbox" name="token[]" id="ttm-token-' . esc_attr( (string) $id ) . '" value="' . esc_attr( (string) $id ) . '" />';
 	}
 
 	public function prepare_items() {

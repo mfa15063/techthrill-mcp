@@ -20,6 +20,11 @@ final class ClientMetadataFetcher {
 	const CACHE_TTL = 3600;
 
 	/**
+	 * A cached client is still used for this long (30 days) when its document cannot be fetched again.
+	 */
+	const STALE_TTL = 2592000;
+
+	/**
 	 * Fetches a URL: fn( string $url ): ?array{status:int,content_type:string,body:string}.
 	 *
 	 * @var callable
@@ -88,6 +93,29 @@ final class ClientMetadataFetcher {
 			throw $this->invalid( 'The client_id is not a valid metadata document URL.' );
 		}
 
+		try {
+			return $this->fetch( $clientId, $existing, $now );
+		} catch ( OAuthException $e ) {
+			// A client whose document worked before keeps working while the document is unreachable, so a network
+			// hiccup on this site or on the client's host does not force the user to authorize again.
+			if ( null !== $existing && 'cimd' === ( $existing['source'] ?? '' ) && (int) ( $existing['fetched_at'] ?? 0 ) > $now - self::STALE_TTL ) {
+				return $existing;
+			}
+
+			throw $e;
+		}
+	}
+
+	/**
+	 * Fetches, validates and caches the client's metadata document.
+	 *
+	 * @param string     $clientId Metadata document URL.
+	 * @param array|null $existing Cached record, if any.
+	 * @param int        $now      Current unix time.
+	 * @return array Client record.
+	 * @throws OAuthException When the document cannot be fetched or is not valid.
+	 */
+	private function fetch( string $clientId, ?array $existing, int $now ): array {
 		$response = call_user_func( $this->http, $clientId );
 		if ( ! is_array( $response ) ) {
 			throw $this->invalid( 'The client metadata document could not be fetched.' );

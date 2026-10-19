@@ -37,6 +37,8 @@ Requirements and limits:
 - Accepted redirect URIs are exactly `https://claude.ai/api/mcp/auth_callback`, `https://chatgpt.com/connector/oauth/<id>` and `http://localhost` or `http://127.0.0.1` on any port. Clients that use others are refused.
 - If your host blocks `/.well-known` (an nginx rule or a security plugin), most clients still work through the link in the 401 response; otherwise use the bearer-token section below.
 - Every grant appears on the Tokens tab as `OAuth: <client>`; revoking it stops it at once.
+- The access token lasts as long as the expiry you chose on the approval screen (1 day, 1 week, 30 days or never), so the client does not have to renew it every hour. A refresh token is still issued, but a refresh no longer depends on the site fetching the client's metadata document again.
+- On the Tokens tab, tick tokens (or the header checkbox) and use **Revoke Selected** or **Delete Selected** to handle several at once.
 
 ## Connect an AI agent with a prompt
 
@@ -44,7 +46,7 @@ Below the one-paste card, **Connect an AI agent with a prompt** shows a prompt t
 
 1. The agent asks the site for access (`POST /wp-json/techthrill-mcp/v1/oauth/agent/start`) and shows you an approval link and a short code.
 2. You open the link, log in as an administrator, check that the code matches, tick the permissions (every permission is ticked by default and a Select all / Deselect all checkbox sits on top; `wp-cli`, `db:write`, `files:write` for copying and changing files, and so on), choose the expiry (1 day, 1 week, 30 days by default, or Never expire) and press Approve.
-3. The agent collects its token once (`.../oauth/agent/poll`). The token lasts for the expiry you chose (30 days by default) and shows on the Tokens tab as `AI agent: <name> <date>`; revoke it there at any time.
+3. The agent collects its token once (`.../oauth/agent/poll`) together with its expiry date, and saves it in a private file (`~/.techthrill-mcp/<site-host>.json`, folder mode 700, file mode 600). From then on it reuses that file for every message and every new conversation on the same computer, and asks you to approve again only when the file is missing, the server answers 401 (expired, revoked or invalid) or it needs a permission you did not give. The token lasts for the expiry you chose (30 days by default) and shows on the Tokens tab as `AI agent: <name> <date>`; revoke it there at any time.
 
 A normal chat window (free Claude or ChatGPT in the browser) cannot run commands. The prompt tells such a chat to stop and reply that you need an agent that can run commands, or an app and plan with custom connectors (use the one-paste card for those). Requests expire after 10 minutes, are limited per IP address, and the approval page shows the code and the requesting IP address so you can tell your own request from a stranger's.
 
