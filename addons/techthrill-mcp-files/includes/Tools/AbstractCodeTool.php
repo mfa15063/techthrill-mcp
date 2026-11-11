@@ -7,9 +7,7 @@
 
 namespace TechThrill\MCP\Files\Tools;
 
-use TechThrill\MCP\Files\Support\AllowedRoots;
 use TechThrill\MCP\Files\Support\BackupStore;
-use TechThrill\MCP\Files\Support\FileRules;
 use TechThrill\MCP\Files\Support\ToolFailure;
 use TechThrill\MCP\Safety\JailedPath;
 use TechThrill\MCP\Safety\PathException;
@@ -23,8 +21,9 @@ use TechThrill\MCP\Tools\ToolResult;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Shared checks: every path is resolved through the main plugin's PathJail (so symlinks cannot escape the site),
- * must lie strictly below an allowed folder (themes, plugins), and passes the main plugin's safe mode.
+ * Shared checks: every path is resolved through the main plugin's PathJail (so symlinks cannot escape the site).
+ * Any file inside the WordPress folder may be changed, wp-config.php and .htaccess included; the only thing that
+ * can still refuse a write is the main plugin's safe mode while the administrator has it switched on.
  */
 abstract class AbstractCodeTool extends AbstractFileTool {
 
@@ -33,7 +32,10 @@ abstract class AbstractCodeTool extends AbstractFileTool {
 	 */
 	const MAX_TEXT = 5242880;
 
-	protected AllowedRoots $roots;
+	/**
+	 * Root-relative paths whose rename or move breaks a WordPress site.
+	 */
+	const CORE = array( 'wp-admin', 'wp-includes', 'wp-content', 'wp-content/plugins', 'wp-content/themes', 'wp-content/mu-plugins', 'wp-content/uploads', 'wp-config.php', 'index.php', 'wp-load.php', 'wp-settings.php', '.htaccess' );
 
 	protected BackupStore $backups;
 
@@ -45,28 +47,17 @@ abstract class AbstractCodeTool extends AbstractFileTool {
 	protected $activeRoots;
 
 	/**
-	 * Root-relative folders that can never be renamed or moved, such as the main plugin and this addon.
-	 *
-	 * @var string[]
-	 */
-	protected array $neverMove;
-
-	/**
 	 * @param PathJail      $jail        Main plugin's path jail.
 	 * @param SafeMode      $safeMode    Main plugin's safe mode.
-	 * @param AllowedRoots  $roots       Folders the tools may touch.
 	 * @param BackupStore   $backups     Backup storage.
 	 * @param callable|null $activeRoots Returns the active themes' and plugins' root-relative paths.
-	 * @param string[]      $neverMove   Folders that can never be renamed or moved.
 	 */
-	public function __construct( PathJail $jail, SafeMode $safeMode, AllowedRoots $roots, BackupStore $backups, ?callable $activeRoots = null, array $neverMove = array() ) {
+	public function __construct( PathJail $jail, SafeMode $safeMode, BackupStore $backups, ?callable $activeRoots = null ) {
 		parent::__construct( $jail, $safeMode );
-		$this->roots       = $roots;
 		$this->backups     = $backups;
 		$this->activeRoots = $activeRoots ?? static function (): array {
 			return array();
 		};
-		$this->neverMove   = array_map( array( AllowedRoots::class, 'normalize' ), $neverMove );
 	}
 
 	/**
@@ -115,25 +106,39 @@ abstract class AbstractCodeTool extends AbstractFileTool {
 	}
 
 	/**
-	 * Refuses a path outside the theme and plugin folders, or one safe mode protects.
+	 * Refuses a path only when safe mode (if the administrator switched it on) protects it. With safe mode off
+	 * nothing is refused, wp-config.php and .htaccess included; the main plugin's own file tools still refuse
+	 * wp-config.php, this addon does not.
 	 *
-	 * @param JailedPath $path        Resolved path.
-	 * @param bool       $insideFolder True for a file: it must sit inside a theme or plugin folder, not directly in the themes or plugins folder.
+	 * @param JailedPath $path Resolved path.
 	 * @throws ToolFailure When refused.
 	 */
-	protected function allow( JailedPath $path, bool $insideFolder = true ): void {
-		if ( ! $this->roots->contains( $path->relative ) ) {
-			throw new ToolFailure( $path->relative . ' is outside the theme and plugin folders. This addon only works inside: ' . implode( ', ', $this->roots->roots() ) . '.' );
-		}
-
-		if ( $insideFolder && (int) $this->roots->depth( $path->relative ) < 2 ) {
-			throw new ToolFailure( $path->relative . ' is directly in the themes or plugins folder. Give a path inside a theme or plugin folder, for example ' . $this->roots->roots()[0] . '/my-theme/file.css.' );
-		}
-
+	protected function allow( JailedPath $path ): void {
 		$refusal = $this->safeMode->checkPathWrite( $path->relative );
-		if ( null !== $refusal ) {
-			throw new ToolFailure( $refusal->reason() );
+		if ( null === $refusal ) {
+			return;
 		}
+		if ( ! $this->safeMode->isEnabled() && $this->isNeverWrite( $path->relative ) ) {
+			return;
+		}
+
+		throw new ToolFailure( $refusal->reason() );
+	}
+
+	/**
+	 * Whether the main plugin's own tools never write this path (wp-config.php and the WP-CLI config files).
+	 *
+	 * @param string $relative Root-relative path.
+	 */
+	private function isNeverWrite( string $relative ): bool {
+		$path = strtolower( trim( str_replace( '\\', '/', $relative ), '/' ) );
+		foreach ( SafeMode::PROTECTED_NEVER_WRITE as $entry ) {
+			if ( strtolower( $entry ) === $path ) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**
@@ -143,18 +148,6 @@ abstract class AbstractCodeTool extends AbstractFileTool {
 	 */
 	protected function baseName( string $path ): string {
 		return basename( str_replace( '\\', '/', $path ) );
-	}
-
-	/**
-	 * Refuses a name the code tools may not write.
-	 *
-	 * @param string $name Base name.
-	 * @throws ToolFailure When refused.
-	 */
-	protected function requireCodeName( string $name ): void {
-		if ( ! FileRules::isCodeFile( $name ) ) {
-			throw new ToolFailure( $name . ' is not a file type this tool writes. Allowed: ' . FileRules::codeList() . '. (Dot files such as .htaccess and other script types are never allowed; binary files go through asset_upload.)' );
-		}
 	}
 
 	/**
@@ -214,14 +207,15 @@ abstract class AbstractCodeTool extends AbstractFileTool {
 	}
 
 	/**
-	 * Whether a root-relative path is an active theme or plugin folder or main file.
+	 * Whether a root-relative path is something whose rename or move would break the site (an active theme or
+	 * plugin, WordPress core, the config file). Renaming these needs confirm_active.
 	 *
 	 * @param string $relative Root-relative path.
 	 */
 	protected function isActive( string $relative ): bool {
-		$needle = strtolower( AllowedRoots::normalize( $relative ) );
-		foreach ( (array) call_user_func( $this->activeRoots ) as $active ) {
-			if ( strtolower( AllowedRoots::normalize( (string) $active ) ) === $needle ) {
+		$needle = $this->key( $relative );
+		foreach ( array_merge( self::CORE, (array) call_user_func( $this->activeRoots ) ) as $active ) {
+			if ( $this->key( (string) $active ) === $needle ) {
 				return true;
 			}
 		}
@@ -230,12 +224,12 @@ abstract class AbstractCodeTool extends AbstractFileTool {
 	}
 
 	/**
-	 * Whether a path is one of the folders that can never be renamed or moved.
+	 * Lower-case, forward-slash form of a path for comparison.
 	 *
-	 * @param string $relative Root-relative path.
+	 * @param string $path Path.
 	 */
-	protected function isNeverMove( string $relative ): bool {
-		return in_array( strtolower( AllowedRoots::normalize( $relative ) ), array_map( 'strtolower', $this->neverMove ), true );
+	private function key( string $path ): string {
+		return strtolower( trim( str_replace( '\\', '/', $path ), '/' ) );
 	}
 
 	/**

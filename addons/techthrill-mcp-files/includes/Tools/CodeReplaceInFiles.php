@@ -27,7 +27,7 @@ final class CodeReplaceInFiles extends AbstractCodeTool {
 	}
 
 	public function description(): string {
-		return 'Find and replace text across the code files (php, html, css, js and other text files) inside a theme or plugin folder, like a search-replace without WP-CLI. dry_run defaults to true: it only reports what would change, so run it first, then repeat with dry_run=false. A PHP file whose result would no longer parse is skipped, and every changed file is backed up.';
+		return 'Find and replace text across the text files (php, html, css, js, htaccess and any other non-binary file) inside any folder of the site, like a search-replace without WP-CLI. dry_run defaults to true: it only reports what would change, so run it first, then repeat with dry_run=false. A PHP file whose result would no longer parse is skipped, and every changed file is backed up.';
 	}
 
 	public function inputSchema(): array {
@@ -36,7 +36,7 @@ final class CodeReplaceInFiles extends AbstractCodeTool {
 			'properties' => array(
 				'folder'         => array(
 					'type'        => 'string',
-					'description' => 'Theme or plugin folder (or a folder inside one), relative to the WordPress root.',
+					'description' => 'Folder to search, relative to the WordPress root. Use a single dot for the whole site.',
 				),
 				'search'         => array(
 					'type'        => 'string',
@@ -104,16 +104,16 @@ final class CodeReplaceInFiles extends AbstractCodeTool {
 		}
 
 		$folder = $this->existing( (string) ( $args['folder'] ?? '' ) );
-		$this->allow( $folder, false );
 		if ( ! is_dir( $folder->absolute ) ) {
 			throw new ToolFailure( $folder->relative . ' is not a folder.' );
 		}
 
-		$scanned   = 0;
-		$total     = 0;
-		$changed   = array();
-		$skipped   = array();
-		$truncated = false;
+		$backup_dir = rtrim( str_replace( '\\', '/', $this->backups->baseDir() ), '/' ) . '/';
+		$scanned    = 0;
+		$total      = 0;
+		$changed    = array();
+		$skipped    = array();
+		$truncated  = false;
 
 		try {
 			foreach ( $this->walk( $folder->absolute ) as $item ) {
@@ -121,10 +121,13 @@ final class CodeReplaceInFiles extends AbstractCodeTool {
 					continue;
 				}
 				$name = $item->getFilename();
-				if ( ! FileRules::isCodeFile( $name ) || ! fnmatch( $glob, $name ) ) {
+				if ( ! fnmatch( $glob, $name ) ) {
 					continue;
 				}
 
+				if ( 0 === strncmp( str_replace( '\\', '/', $item->getPathname() ), $backup_dir, strlen( $backup_dir ) ) ) {
+					continue;
+				}
 				$relative = $this->relativePath( $item, $folder->absolute, $folder->relative );
 				if ( $item->getSize() > self::MAX_TEXT || $this->isBinary( $item->getPathname() ) ) {
 					continue;
@@ -148,11 +151,12 @@ final class CodeReplaceInFiles extends AbstractCodeTool {
 					continue;
 				}
 
-				$refusal = $this->safeMode->checkPathWrite( $relative );
-				if ( null !== $refusal ) {
+				try {
+					$this->allow( $this->existing( $relative ) );
+				} catch ( ToolFailure $e ) {
 					$skipped[] = array(
 						'path'   => $relative,
-						'reason' => $refusal->reason(),
+						'reason' => $e->getMessage(),
 					);
 					continue;
 				}

@@ -7,7 +7,6 @@
 
 namespace TechThrill\MCP\Files;
 
-use TechThrill\MCP\Files\Support\AllowedRoots;
 use TechThrill\MCP\Files\Support\BackupStore;
 use TechThrill\MCP\Files\Tools\AssetUpload;
 use TechThrill\MCP\Files\Tools\CodeFileBackups;
@@ -151,12 +150,10 @@ final class Bootstrap {
 
 		try {
 			$plugin  = \TechThrill\MCP\Plugin::instance();
-			$roots   = new AllowedRoots( self::allowedRoots() );
 			$backups = new BackupStore( self::backupDir() );
-			$never   = self::neverMove();
 
 			foreach ( array( CodeFileWrite::class, CodeFileEdit::class, CodeFileRename::class, AssetUpload::class, CodeReplaceInFiles::class, CodeFileBackups::class, CodeFileRestore::class ) as $class ) {
-				$registry->register( new $class( $plugin->pathJail(), $plugin->safeMode(), $roots, $backups, array( self::class, 'activeRoots' ), $never ) );
+				$registry->register( new $class( $plugin->pathJail(), $plugin->safeMode(), $backups, array( self::class, 'activeRoots' ) ) );
 			}
 		} catch ( \Throwable $e ) {
 			// Never break the main plugin because of this addon.
@@ -164,25 +161,6 @@ final class Bootstrap {
 		}
 
 		return $registry;
-	}
-
-	/**
-	 * Root-relative theme and plugin folders. Extend them with the techthrill_mcp_files_allowed_roots filter.
-	 *
-	 * @return string[]
-	 */
-	public static function allowedRoots(): array {
-		$roots = array();
-		foreach ( array( get_theme_root(), WP_PLUGIN_DIR ) as $dir ) {
-			$relative = self::relative( (string) $dir );
-			if ( null !== $relative ) {
-				$roots[] = $relative;
-			}
-		}
-
-		$filtered = apply_filters( 'techthrill_mcp_files_allowed_roots', $roots );
-
-		return is_array( $filtered ) ? array_values( array_filter( $filtered, 'is_string' ) ) : $roots;
 	}
 
 	/**
@@ -218,23 +196,6 @@ final class Bootstrap {
 		}
 
 		return array_values( array_unique( $out ) );
-	}
-
-	/**
-	 * Folders that can never be renamed or moved: the main plugin and this addon.
-	 *
-	 * @return string[]
-	 */
-	public static function neverMove(): array {
-		$never = array();
-		foreach ( array( defined( 'TECHTHRILL_MCP_DIR' ) ? constant( 'TECHTHRILL_MCP_DIR' ) : '', plugin_dir_path( self::$file ) ) as $dir ) {
-			$relative = '' === $dir ? null : self::relative( (string) $dir );
-			if ( null !== $relative ) {
-				$never[] = $relative;
-			}
-		}
-
-		return $never;
 	}
 
 	/**

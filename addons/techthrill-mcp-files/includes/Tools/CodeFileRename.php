@@ -12,11 +12,11 @@ use TechThrill\MCP\Files\Support\ToolFailure;
 use TechThrill\MCP\Tools\ToolContext;
 use TechThrill\MCP\Tools\ToolResult;
 
-// phpcs:disable WordPress.WP.AlternativeFunctions, WordPress.PHP.NoSilencedErrors.Discouraged -- Moves inside theme and plugin folders that PathJail has already confined; every silenced call is checked through its return value.
+// phpcs:disable WordPress.WP.AlternativeFunctions, WordPress.PHP.NoSilencedErrors.Discouraged -- Moves inside the site that PathJail has already confined; every silenced call is checked through its return value.
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Renames or moves a file or a folder, inside the theme and plugin folders.
+ * Renames or moves a file or a folder, anywhere on the site.
  */
 final class CodeFileRename extends AbstractCodeTool {
 
@@ -25,7 +25,7 @@ final class CodeFileRename extends AbstractCodeTool {
 	}
 
 	public function description(): string {
-		return 'Rename or move a file or folder inside the theme and plugin folders. Works without WP-CLI. An existing destination file is replaced only with overwrite=true (its old version is backed up). Renaming an active theme or plugin folder or main file needs confirm_active=true because it deactivates or breaks it; the TechThrill MCP plugin folders can never be renamed.';
+		return 'Rename or move any file or folder on the site. Works without WP-CLI. An existing destination file is replaced only with overwrite=true (its old version is backed up). Renaming an active theme or plugin (folder or main file), WordPress core folders, wp-config.php or .htaccess needs confirm_active=true because it can break the site.';
 	}
 
 	public function inputSchema(): array {
@@ -52,7 +52,7 @@ final class CodeFileRename extends AbstractCodeTool {
 				),
 				'confirm_active' => array(
 					'type'        => 'boolean',
-					'description' => 'Required to rename the folder or main file of an active theme or plugin.',
+					'description' => 'Required to rename an active theme or plugin, a WordPress core folder, wp-config.php or .htaccess.',
 					'default'     => false,
 				),
 			),
@@ -77,29 +77,23 @@ final class CodeFileRename extends AbstractCodeTool {
 			throw new ToolFailure( 'The source and the destination are the same path.' );
 		}
 
-		// A theme or plugin folder may be renamed as a whole; a file must stay inside one.
 		$is_dir = is_dir( $from->absolute );
-		$this->allow( $from, ! $is_dir );
-		$this->allow( $to, ! $is_dir );
+		$this->allow( $from );
+		$this->allow( $to );
 		$name = $this->baseName( $to_arg );
+		if ( ! FileRules::isValidName( $name ) ) {
+			throw new ToolFailure( $name . ' is not a valid file or folder name.' );
+		}
 		if ( $is_dir ) {
-			if ( ! FileRules::isSafeDirName( $name ) ) {
-				throw new ToolFailure( $name . ' is not an acceptable folder name (letters, digits, dots, dashes, underscores and spaces; no dot folders).' );
-			}
 			$prefix = rtrim( $from->absolute, '/\\' ) . DIRECTORY_SEPARATOR;
 			if ( 0 === strncmp( $to->absolute, $prefix, strlen( $prefix ) ) ) {
 				throw new ToolFailure( 'A folder cannot be moved into itself.' );
 			}
-		} elseif ( ! FileRules::isCodeFile( $name ) && ! FileRules::isAssetFile( $name ) ) {
-			throw new ToolFailure( $name . ' is not a file name this addon allows. Allowed text types: ' . FileRules::codeList() . '. Allowed asset types: ' . FileRules::assetList() . '.' );
 		}
 
 		foreach ( array( $from, $to ) as $side ) {
-			if ( $this->isNeverMove( $side->relative ) ) {
-				throw new ToolFailure( $side->relative . ' is part of TechThrill MCP and cannot be renamed, moved or replaced through the tools.' );
-			}
 			if ( ! $confirmed && $this->isActive( $side->relative ) ) {
-				throw new ToolFailure( $side->relative . ' belongs to an active theme or plugin, and changing it would deactivate or break it. Set confirm_active to true if you really mean it.' );
+				throw new ToolFailure( $side->relative . ' is an active theme or plugin, a WordPress core path or a site config file, and changing it can break the site. Set confirm_active to true if you really mean it.' );
 			}
 		}
 

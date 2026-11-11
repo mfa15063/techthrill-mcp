@@ -19,7 +19,7 @@ class ReplaceAndBackupToolsTest extends AddonTestCase {
 		file_put_contents( $this->root . '/wp-content/themes/parent/a.css', "a { color: #111; }\nb { color: #111; }\n" );
 		file_put_contents( $this->root . '/wp-content/themes/parent/inc/b.css', 'c { color: #111; }' );
 		file_put_contents( $this->root . '/wp-content/themes/child/c.css', 'c { color: #111; }' );
-		file_put_contents( $this->root . '/wp-content/themes/parent/logo.png', "\x89PNG\r\n\x1a\n#111" );
+		file_put_contents( $this->root . '/wp-content/themes/parent/logo.png', "\x89PNG\r\n\x1a\n\0#111" );
 	}
 
 	public function test_names_scopes_and_schemas(): void {
@@ -50,7 +50,7 @@ class ReplaceAndBackupToolsTest extends AddonTestCase {
 		$this->assertFalse( $data['dry_run'] );
 		$this->assertSame( 3, $data['replacements'] );
 		$this->assertSame( "a { color: #222; }\nb { color: #222; }\n", $this->read( 'wp-content/themes/parent/a.css' ) );
-		$this->assertSame( "\x89PNG\r\n\x1a\n#111", $this->read( 'wp-content/themes/parent/logo.png' ), 'Non-code files are never touched.' );
+		$this->assertSame( "\x89PNG\r\n\x1a\n\0#111", $this->read( 'wp-content/themes/parent/logo.png' ), 'Non-code files are never touched.' );
 		$this->assertStringContainsString( '#111', $this->read( 'wp-content/themes/child/c.css' ), 'Other folders are untouched.' );
 
 		$backups = $this->data( $this->run_tool( CodeFileBackups::class, array( 'path' => 'wp-content/themes/parent/a.css' ) ) );
@@ -96,16 +96,30 @@ class ReplaceAndBackupToolsTest extends AddonTestCase {
 	public function test_invalid_input_and_scope_are_refused(): void {
 		$this->assertSame( 'search is not a valid regular expression.', $this->replace( array( 'folder' => 'wp-content/themes/parent', 'search' => '(', 'regex' => true ) )->text() );
 		$this->assertStringContainsString( 'search must be', $this->replace( array( 'folder' => 'wp-content/themes/parent', 'search' => '' ) )->text() );
-		$this->assertStringContainsString( 'outside the theme and plugin folders', $this->replace( array( 'folder' => 'wp-content/uploads', 'search' => 'a' ) )->text() );
-		$this->assertStringContainsString( 'outside the theme and plugin folders', $this->replace( array( 'folder' => 'wp-content/themes', 'search' => 'a' ) )->text(), 'The themes folder as a whole is too broad.' );
 		$this->assertStringContainsString( 'is not a folder', $this->replace( array( 'folder' => 'wp-content/themes/parent/a.css', 'search' => 'a' ) )->text() );
 	}
 
-	public function test_safe_mode_refuses_a_protected_folder_up_front(): void {
+	public function test_a_replace_can_cover_the_whole_site_including_dot_files_and_skips_the_backup_folder(): void {
+		file_put_contents( $this->root . '/.htaccess', "Header set X #111\n" );
+		file_put_contents( $this->root . '/wp-config.php', "<?php\n// #111\n" );
+		$this->data( $this->run_tool( CodeFileWrite::class, array( 'path' => 'wp-content/themes/parent/a.css', 'content' => 'a { color: #111; }' ) ) );
+		$d = $this->data( $this->replace( array( 'folder' => '.', 'search' => '#111', 'replace' => '#222', 'dry_run' => false ) ) );
+		$paths = array_column( $d['files_changed'], 'path' );
+		$this->assertContains( '.htaccess', $paths );
+		$this->assertContains( 'wp-config.php', $paths );
+		$this->assertContains( 'wp-content/themes/parent/a.css', $paths );
+		foreach ( $paths as $path ) {
+			$this->assertStringNotContainsString( 'backups-test', $path, 'The backup folder is never searched.' );
+		}
+		$this->assertSame( "Header set X #222\n", $this->read( '.htaccess' ) );
+		$this->assertSame( "<?php\n// #222\n", $this->read( 'wp-config.php' ) );
+	}
+
+	public function test_safe_mode_skips_protected_files_while_it_is_on(): void {
 		file_put_contents( $this->root . '/wp-content/plugins/techthrill-mcp/x.css', 'a { color: #111; }' );
-		$r = $this->replace( array( 'folder' => 'wp-content/plugins/techthrill-mcp', 'search' => '#111', 'replace' => '#222', 'dry_run' => false ), true );
-		$this->assertTrue( $r->isError() );
-		$this->assertStringStartsWith( 'Refused by safe mode', $r->text() );
+		$d = $this->data( $this->replace( array( 'folder' => 'wp-content/plugins/techthrill-mcp', 'search' => '#111', 'replace' => '#222', 'dry_run' => false ), true ) );
+		$this->assertSame( 0, $d['replacements'] );
+		$this->assertStringStartsWith( 'Refused by safe mode', $d['skipped'][0]['reason'] );
 		$this->assertSame( 'a { color: #111; }', $this->read( 'wp-content/plugins/techthrill-mcp/x.css' ) );
 
 		$off = $this->data( $this->replace( array( 'folder' => 'wp-content/plugins/techthrill-mcp', 'search' => '#111', 'replace' => '#222' ), false ) );
@@ -143,8 +157,8 @@ class ReplaceAndBackupToolsTest extends AddonTestCase {
 		$r = $this->run_tool( CodeFileRestore::class, array( 'path' => $p, 'backup' => '../../../etc/passwd' ) );
 		$this->assertStringContainsString( 'such backup', $r->text() );
 		$r = $this->run_tool( CodeFileRestore::class, array( 'path' => 'wp-config.php' ) );
-		$this->assertStringContainsString( 'outside the theme and plugin folders', $r->text() );
-		$this->assertStringContainsString( 'outside', $this->run_tool( CodeFileBackups::class, array( 'path' => 'wp-config.php' ) )->text() );
+		$this->assertStringContainsString( 'There is no backup of wp-config.php', $r->text() );
+		$this->assertSame( array(), $this->data( $this->run_tool( CodeFileBackups::class, array( 'path' => 'wp-config.php' ) ) )['backups'] );
 	}
 
 	public function test_a_deleted_file_can_be_restored_from_its_backup(): void {

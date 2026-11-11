@@ -65,22 +65,37 @@ class CodeFileWriteEditTest extends AddonTestCase {
 		$this->assertFileExists( $this->root . '/wp-content/themes/child/odd.php' );
 	}
 
-	public function test_files_outside_themes_and_plugins_are_refused(): void {
-		foreach ( array( 'wp-config.php', 'wp-content/uploads/a.php', 'index.php', 'wp-content/themes', 'wp-content/plugins/', 'wp-content/mu-plugins/a.php' ) as $path ) {
-			$r = $this->write( array( 'path' => $path, 'content' => "<?php\n" ) );
-			$this->assertTrue( $r->isError(), $path );
-			$this->assertStringContainsString( 'outside the theme and plugin folders', $r->text(), $path );
+	public function test_any_file_on_the_site_can_be_written(): void {
+		foreach ( array( 'wp-content/uploads/a.php', 'index.php', 'wp-content/mu-plugins/a.php', 'wp-content/themes/index.php', 'wp-content/plugins/hello.php', 'wp-content/themes/child/.htaccess', '.htaccess', 'wp-content/themes/child/run.sh', 'wp-content/themes/child/noext', 'wp-content/themes/child/a.php.png' ) as $path ) {
+			$data = $this->data( $this->write( array( 'path' => $path, 'content' => "<?php\n" ) ) );
+			$this->assertSame( $path, $data['path'] );
+			$this->assertSame( "<?php\n", $this->read( $path ), $path );
 		}
-		$this->assertSame( "<?php\n// config\n", $this->read( 'wp-config.php' ) );
 	}
 
-	public function test_a_file_directly_in_the_themes_or_plugins_folder_is_refused(): void {
-		foreach ( array( 'wp-content/themes/index.php', 'wp-content/plugins/hello.php' ) as $path ) {
-			$r = $this->write( array( 'path' => $path, 'content' => "<?php\n" ) );
+	public function test_wp_config_and_htaccess_can_be_edited_with_a_backup_and_a_syntax_check(): void {
+		$data = $this->data( $this->write( array( 'path' => 'wp-config.php', 'content' => "<?php\ndefine( 'WP_DEBUG', true );\n" ) ) );
+		$this->assertNotNull( $data['backup'] );
+		$this->assertSame( "<?php\ndefine( 'WP_DEBUG', true );\n", $this->read( 'wp-config.php' ) );
+
+		$bad = $this->write( array( 'path' => 'wp-config.php', 'content' => "<?php\ndefine( 'X', ;\n" ) );
+		$this->assertTrue( $bad->isError() );
+		$this->assertStringContainsString( 'PHP syntax error', $bad->text() );
+		$this->assertSame( "<?php\ndefine( 'WP_DEBUG', true );\n", $this->read( 'wp-config.php' ) );
+
+		$this->data( $this->write( array( 'path' => '.htaccess', 'content' => "# BEGIN\nOptions -Indexes\n# END\n" ) ) );
+		$this->data( $this->edit( array( 'path' => '.htaccess', 'old_string' => '-Indexes', 'new_string' => '+Indexes' ) ) );
+		$this->assertStringContainsString( '+Indexes', $this->read( '.htaccess' ) );
+	}
+
+	public function test_safe_mode_still_protects_wp_config_and_htaccess_while_it_is_on(): void {
+		file_put_contents( $this->root . '/.htaccess', "# keep\n" );
+		foreach ( array( 'wp-config.php', '.htaccess' ) as $path ) {
+			$r = $this->write( array( 'path' => $path, 'content' => "<?php\n" ), true );
 			$this->assertTrue( $r->isError(), $path );
-			$this->assertStringContainsString( 'directly in the themes or plugins folder', $r->text(), $path );
-			$this->assertFileDoesNotExist( $this->root . '/' . $path );
 		}
+		$this->assertSame( "<?php\n// config\n", $this->read( 'wp-config.php' ) );
+		$this->assertSame( "# keep\n", $this->read( '.htaccess' ) );
 	}
 
 	public function test_path_jail_still_blocks_traversal_and_absolute_paths(): void {
@@ -88,24 +103,16 @@ class CodeFileWriteEditTest extends AddonTestCase {
 		$this->assertSame( 'Absolute paths are not allowed.', $this->write( array( 'path' => 'C:/x.php', 'content' => "<?php\n" ) )->text() );
 	}
 
-	public function test_a_symlink_out_of_the_allowed_folders_cannot_be_written_through(): void {
-		$target = $this->root . '/wp-content/uploads/target.css';
-		file_put_contents( $target, 'keep' );
-		if ( ! @symlink( $target, $this->root . '/wp-content/themes/child/link.css' ) ) {
+	public function test_a_symlink_out_of_the_site_cannot_be_written_through(): void {
+		$outside = sys_get_temp_dir() . '/ttm-outside-' . uniqid() . '.css';
+		file_put_contents( $outside, 'keep' );
+		if ( ! @symlink( $outside, $this->root . '/wp-content/themes/child/link.css' ) ) {
 			$this->markTestSkipped( 'symlink() unavailable on this platform' );
 		}
 		$r = $this->write( array( 'path' => 'wp-content/themes/child/link.css', 'content' => 'pwned' ) );
 		$this->assertTrue( $r->isError() );
-		$this->assertSame( 'keep', file_get_contents( $target ) );
-	}
-
-	public function test_dangerous_names_are_refused(): void {
-		foreach ( array( 'wp-content/themes/child/.htaccess', 'wp-content/themes/child/shell.phtml', 'wp-content/themes/child/a.php.png', 'wp-content/themes/child/run.sh', 'wp-content/themes/child/x.exe', 'wp-content/themes/child/noext' ) as $path ) {
-			$r = $this->write( array( 'path' => $path, 'content' => 'x' ) );
-			$this->assertTrue( $r->isError(), $path );
-			$this->assertStringContainsString( 'is not a file type this tool writes', $r->text(), $path );
-			$this->assertFileDoesNotExist( $this->root . '/' . $path );
-		}
+		$this->assertSame( 'keep', file_get_contents( $outside ) );
+		unlink( $outside );
 	}
 
 	public function test_a_folder_cannot_be_overwritten_and_create_dirs_false_is_respected(): void {
@@ -130,18 +137,6 @@ class CodeFileWriteEditTest extends AddonTestCase {
 		$this->assertStringStartsWith( 'Refused by safe mode: ', $on->text() );
 		$off = $this->write( array( 'path' => $path, 'content' => "<?php\n" ), false );
 		$this->assertFalse( $off->isError(), $off->text() );
-	}
-
-	public function test_wp_config_is_never_writable_even_if_the_roots_were_widened(): void {
-		$tool = new \TechThrill\MCP\Files\Tools\CodeFileWrite(
-			new \TechThrill\MCP\Safety\PathJail( $this->root ),
-			new \TechThrill\MCP\Safety\SafeMode( false, 'x' ),
-			new \TechThrill\MCP\Files\Support\AllowedRoots( array( '.', 'wp-content' ) ),
-			new \TechThrill\MCP\Files\Support\BackupStore( $this->backupDir )
-		);
-		$r = $tool->execute( array( 'path' => 'wp-config.php', 'content' => "<?php\n" ), new \TechThrill\MCP\Tools\ToolContext( 1, 1, array( 'files:write' ) ) );
-		$this->assertTrue( $r->isError() );
-		$this->assertSame( "<?php\n// config\n", $this->read( 'wp-config.php' ) );
 	}
 
 	// Edit.
@@ -188,12 +183,10 @@ class CodeFileWriteEditTest extends AddonTestCase {
 		$this->assertStringContainsString( 'echo 2', $this->read( 'wp-content/themes/parent/broken.php' ) );
 	}
 
-	public function test_edit_refuses_binary_missing_outside_and_wrong_types(): void {
+	public function test_edit_refuses_binary_missing_and_folders(): void {
 		file_put_contents( $this->root . '/wp-content/themes/parent/bin.css', "a\0b" );
 		$this->assertStringContainsString( 'binary file', $this->edit( array( 'path' => 'wp-content/themes/parent/bin.css', 'old_string' => 'a', 'new_string' => 'b' ) )->text() );
 		$this->assertSame( 'Path does not exist.', $this->edit( array( 'path' => 'wp-content/themes/parent/missing.css', 'old_string' => 'a', 'new_string' => 'b' ) )->text() );
-		$this->assertStringContainsString( 'outside the theme and plugin folders', $this->edit( array( 'path' => 'wp-config.php', 'old_string' => 'config', 'new_string' => 'x' ) )->text() );
-		$this->assertSame( "<?php\n// config\n", $this->read( 'wp-config.php' ) );
-		$this->assertStringContainsString( 'is not a file type', $this->edit( array( 'path' => 'wp-content/themes/parent/inc', 'old_string' => 'a', 'new_string' => 'b' ) )->text() );
+		$this->assertStringContainsString( 'is not a file', $this->edit( array( 'path' => 'wp-content/themes/parent/inc', 'old_string' => 'a', 'new_string' => 'b' ) )->text() );
 	}
 }

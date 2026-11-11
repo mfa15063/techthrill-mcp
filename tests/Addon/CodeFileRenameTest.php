@@ -63,44 +63,53 @@ class CodeFileRenameTest extends AddonTestCase {
 		$this->assertStringContainsString( 'already exists', $r->text() );
 		$this->assertDirectoryExists( $this->root . '/wp-content/themes/parent/inc' );
 
-		$r = $this->rename( array( 'from' => 'wp-content/themes/parent/inc', 'to' => 'wp-content/themes/parent/.hidden' ) );
-		$this->assertStringContainsString( 'not an acceptable folder name', $r->text() );
+		$this->data( $this->rename( array( 'from' => 'wp-content/themes/parent/inc', 'to' => 'wp-content/themes/parent/.hidden' ) ) );
+		$this->assertDirectoryExists( $this->root . '/wp-content/themes/parent/.hidden' );
 
 		$r = $this->rename( array( 'from' => 'wp-content/themes/parent/style.css', 'to' => 'wp-content/themes/parent/style.css' ) );
 		$this->assertSame( 'The source and the destination are the same path.', $r->text() );
 	}
 
-	public function test_bad_destination_names_are_refused(): void {
-		foreach ( array( 'wp-content/themes/parent/.htaccess', 'wp-content/themes/parent/x.phtml', 'wp-content/themes/parent/x.php.png', 'wp-content/themes/parent/x.sh', 'wp-content/themes/parent/x.exe' ) as $to ) {
-			$r = $this->rename( array( 'from' => 'wp-content/themes/parent/style.css', 'to' => $to ) );
-			$this->assertTrue( $r->isError(), $to );
-			$this->assertStringContainsString( 'not a file name this addon allows', $r->text(), $to );
-			$this->assertFileExists( $this->root . '/wp-content/themes/parent/style.css' );
+	public function test_any_destination_name_is_allowed_but_not_an_invalid_one(): void {
+		foreach ( array( '.htaccess', 'x.phtml', 'x.php.png', 'x.sh', 'noext' ) as $name ) {
+			file_put_contents( $this->root . '/wp-content/themes/parent/src.txt', 'x' );
+			$this->data( $this->rename( array( 'from' => 'wp-content/themes/parent/src.txt', 'to' => 'wp-content/themes/parent/' . $name ) ) );
+			$this->assertSame( 'x', $this->read( 'wp-content/themes/parent/' . $name ), $name );
 		}
+		$r = $this->rename( array( 'from' => 'wp-content/themes/parent/style.css', 'to' => "wp-content/themes/parent/a\0b" ) );
+		$this->assertTrue( $r->isError() );
+		$this->assertFileExists( $this->root . '/wp-content/themes/parent/style.css' );
 	}
 
-	public function test_both_ends_must_be_inside_the_theme_and_plugin_folders(): void {
-		$r = $this->rename( array( 'from' => 'wp-content/themes/parent/style.css', 'to' => 'wp-content/uploads/style.css' ) );
-		$this->assertStringContainsString( 'outside the theme and plugin folders', $r->text() );
-		$this->assertFileExists( $this->root . '/wp-content/themes/parent/style.css' );
+	public function test_files_can_move_anywhere_on_the_site(): void {
+		$this->data( $this->rename( array( 'from' => 'wp-content/themes/parent/style.css', 'to' => 'wp-content/uploads/style.css' ) ) );
+		$this->assertFileExists( $this->root . '/wp-content/uploads/style.css' );
+		$this->data( $this->rename( array( 'from' => 'wp-content/uploads/style.css', 'to' => 'style-root.css' ) ) );
+		$this->assertFileExists( $this->root . '/style-root.css' );
+		$this->data( $this->rename( array( 'from' => 'wp-content/plugins/foo', 'to' => 'wp-content/plugins/foo2' ) ) );
+		$this->assertDirectoryExists( $this->root . '/wp-content/plugins/foo2' );
+	}
 
-		$r = $this->rename( array( 'from' => 'wp-config.php', 'to' => 'wp-content/themes/parent/wp-config.php' ) );
-		$this->assertStringContainsString( 'outside the theme and plugin folders', $r->text() );
-		$this->assertSame( "<?php\n// config\n", $this->read( 'wp-config.php' ) );
-
-		$r = $this->rename( array( 'from' => 'wp-content/themes', 'to' => 'wp-content/themes2' ) );
-		$this->assertTrue( $r->isError(), 'The themes folder itself cannot be renamed.' );
+	public function test_core_paths_need_confirmation(): void {
+		foreach ( array( 'wp-config.php', 'wp-content/themes', 'wp-content/plugins', 'wp-content/uploads' ) as $path ) {
+			$r = $this->rename( array( 'from' => $path, 'to' => $path . '-old' ) );
+			$this->assertTrue( $r->isError(), $path );
+			$this->assertStringContainsString( 'confirm_active', $r->text(), $path );
+			$this->assertFileExists( $this->root . '/' . $path );
+		}
+		$this->data( $this->rename( array( 'from' => 'wp-config.php', 'to' => 'wp-config.bak', 'confirm_active' => true ) ) );
+		$this->assertFileExists( $this->root . '/wp-config.bak' );
 	}
 
 	public function test_active_themes_and_plugins_need_confirmation(): void {
 		$this->active = array( 'wp-content/themes/parent', 'wp-content/plugins/foo', 'wp-content/plugins/foo/foo.php' );
 
 		$r = $this->rename( array( 'from' => 'wp-content/plugins/foo', 'to' => 'wp-content/plugins/foo-old' ) );
-		$this->assertStringContainsString( 'belongs to an active theme or plugin', $r->text() );
+		$this->assertStringContainsString( 'is an active theme or plugin', $r->text() );
 		$this->assertDirectoryExists( $this->root . '/wp-content/plugins/foo' );
 
 		$r = $this->rename( array( 'from' => 'wp-content/plugins/foo/foo.php', 'to' => 'wp-content/plugins/foo/main.php' ) );
-		$this->assertStringContainsString( 'belongs to an active theme or plugin', $r->text() );
+		$this->assertStringContainsString( 'is an active theme or plugin', $r->text() );
 
 		$data = $this->data( $this->rename( array( 'from' => 'wp-content/plugins/foo', 'to' => 'wp-content/plugins/foo-old', 'confirm_active' => true ) ) );
 		$this->assertSame( 'dir', $data['type'] );
@@ -109,12 +118,14 @@ class CodeFileRenameTest extends AddonTestCase {
 		$this->data( $this->rename( array( 'from' => 'wp-content/themes/parent/inc/helpers.php', 'to' => 'wp-content/themes/parent/inc/utils.php' ) ) );
 	}
 
-	public function test_the_main_plugin_and_this_addon_can_never_be_renamed(): void {
-		foreach ( array( 'wp-content/plugins/techthrill-mcp', 'wp-content/plugins/techthrill-mcp-files' ) as $dir ) {
-			$r = $this->rename( array( 'from' => $dir, 'to' => $dir . '-x', 'confirm_active' => true ) );
-			$this->assertTrue( $r->isError(), $dir );
-			$this->assertStringContainsString( 'part of TechThrill MCP', $r->text(), $dir );
+	public function test_the_main_plugin_and_this_addon_can_be_renamed_with_confirmation(): void {
+		$this->active = array( 'wp-content/plugins/techthrill-mcp', 'wp-content/plugins/techthrill-mcp-files' );
+		foreach ( $this->active as $dir ) {
+			$r = $this->rename( array( 'from' => $dir, 'to' => $dir . '-x' ) );
+			$this->assertStringContainsString( 'confirm_active', $r->text(), $dir );
 			$this->assertDirectoryExists( $this->root . '/' . $dir );
+			$this->data( $this->rename( array( 'from' => $dir, 'to' => $dir . '-x', 'confirm_active' => true ) ) );
+			$this->assertDirectoryExists( $this->root . '/' . $dir . '-x' );
 		}
 	}
 

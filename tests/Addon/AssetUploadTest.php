@@ -61,7 +61,7 @@ class AssetUploadTest extends AddonTestCase {
 	public function test_the_content_must_match_the_file_type(): void {
 		$r = $this->upload( array( 'path' => 'wp-content/themes/child/fake.png', 'content_base64' => base64_encode( '<?php echo 1;' ) ) );
 		$this->assertTrue( $r->isError() );
-		$this->assertSame( 'The content does not look like a real .png file, so it was not written.', $r->text() );
+		$this->assertSame( 'The content does not look like a real .png file, so it was not written. Set skip_type_check to true to write it anyway.', $r->text() );
 		$this->assertFileDoesNotExist( $this->root . '/wp-content/themes/child/fake.png' );
 	}
 
@@ -78,21 +78,23 @@ class AssetUploadTest extends AddonTestCase {
 		$this->assertTrue( AssetUpload::looksLike( 'mp3', 'anything' ), 'Types without a reliable signature pass.' );
 	}
 
-	public function test_script_types_and_text_types_and_dot_files_are_refused(): void {
-		foreach ( array( 'wp-content/themes/child/shell.php', 'wp-content/themes/child/shell.php.png', 'wp-content/themes/child/.htaccess', 'wp-content/themes/child/x.phtml', 'wp-content/themes/child/style.css', 'wp-content/themes/child/noext', 'wp-content/themes/child/run.exe' ) as $path ) {
-			$r = $this->upload( array( 'path' => $path, 'content_base64' => base64_encode( $this->png ) ) );
-			$this->assertTrue( $r->isError(), $path );
-			$this->assertStringContainsString( 'is not an asset type this tool writes', $r->text(), $path );
-			$this->assertFileDoesNotExist( $this->root . '/' . $path );
+	public function test_skip_type_check_writes_the_bytes_anyway(): void {
+		$r = $this->data( $this->upload( array( 'path' => 'wp-content/themes/child/fake.png', 'content_base64' => base64_encode( 'not a png' ), 'skip_type_check' => true ) ) );
+		$this->assertSame( 'not a png', $this->read( 'wp-content/themes/child/fake.png' ) );
+		$this->assertTrue( $r['created'] );
+	}
+
+	public function test_any_file_type_and_any_folder_is_allowed(): void {
+		foreach ( array( 'wp-content/themes/child/shell.php', 'wp-content/themes/child/.htaccess', 'wp-content/themes/child/style.css', 'wp-content/themes/child/noext', 'wp-content/uploads/logo.png', 'wp-content/themes/logo.png', 'logo.png', 'wp-content/plugins/techthrill-mcp/logo.png' ) as $path ) {
+			$data = $this->data( $this->upload( array( 'path' => $path, 'content_base64' => base64_encode( $this->png ), 'skip_type_check' => true ) ) );
+			$this->assertSame( $path, $data['path'] );
+			$this->assertSame( $this->png, $this->read( $path ), $path );
 		}
 	}
 
-	public function test_it_stays_inside_the_theme_and_plugin_folders(): void {
-		foreach ( array( 'wp-content/uploads/logo.png', 'logo.png', 'wp-content/themes/logo.png', 'wp-content/plugins/logo.png', 'wp-content/themes/../uploads/logo.png' ) as $path ) {
-			$r = $this->upload( array( 'path' => $path, 'content_base64' => base64_encode( $this->png ) ) );
-			$this->assertTrue( $r->isError(), $path );
-		}
-		$this->assertFileDoesNotExist( $this->root . '/wp-content/uploads/logo.png' );
+	public function test_traversal_is_still_blocked(): void {
+		$r = $this->upload( array( 'path' => 'wp-content/themes/../../logo.png', 'content_base64' => base64_encode( $this->png ) ) );
+		$this->assertSame( 'Path traversal is not allowed.', $r->text() );
 	}
 
 	public function test_a_folder_destination_invalid_base64_and_empty_content(): void {

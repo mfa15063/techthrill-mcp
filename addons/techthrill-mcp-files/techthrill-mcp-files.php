@@ -2,8 +2,8 @@
 /**
  * Plugin Name:       TechThrill MCP - File Tools (Addon)
  * Plugin URI:        https://github.com/mfa15063/techthrill-mcp
- * Description:       Addon for TechThrill MCP: lets an AI client create, edit, rename, replace and back up php, html, css and js files, and add images and fonts, inside theme and plugin folders when WP-CLI or PHP eval is not available. Needs the main TechThrill MCP plugin.
- * Version:           1.0.0
+ * Description:       Addon for TechThrill MCP: lets an AI client create, edit, rename, replace and back up php, html, css and js files, and add images and fonts, anywhere on the site (wp-config.php and .htaccess included) when WP-CLI or PHP eval is not available. Needs the main TechThrill MCP plugin.
+ * Version:           1.1.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Requires Plugins:  techthrill-mcp
@@ -18,7 +18,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TECHTHRILL_MCP_FILES_VERSION', '1.0.0' );
+define( 'TECHTHRILL_MCP_FILES_VERSION', '1.1.0' );
 
 require_once __DIR__ . '/includes/Autoloader.php';
 require_once __DIR__ . '/includes/Requirements.php';

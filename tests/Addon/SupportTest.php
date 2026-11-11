@@ -3,7 +3,6 @@ namespace TechThrill\MCP\Tests\Addon;
 
 use PHPUnit\Framework\TestCase;
 use TechThrill\MCP\Files\Requirements;
-use TechThrill\MCP\Files\Support\AllowedRoots;
 use TechThrill\MCP\Files\Support\BackupStore;
 use TechThrill\MCP\Files\Support\FileRules;
 use TechThrill\MCP\Files\Support\PhpSyntax;
@@ -54,55 +53,25 @@ class SupportTest extends TestCase {
 
 	// File rules.
 
-	public function test_code_and_asset_names(): void {
-		foreach ( array( 'style.css', 'a.PHP', 'index.html', 'app.js', 'data.json', 'readme.md', 'my file.css' ) as $name ) {
-			$this->assertTrue( FileRules::isCodeFile( $name ), $name );
+	public function test_any_real_file_name_is_valid(): void {
+		foreach ( array( 'style.css', 'a.PHP', '.htaccess', '.user.ini', '.env', 'shell.php.png', 'x.phar', 'run.sh', 'noext', 'my file.css', 'wp-config.php', 'v1.2', '.git', str_repeat( 'a', 255 ) ) as $name ) {
+			$this->assertTrue( FileRules::isValidName( $name ), $name );
 		}
-		foreach ( array( 'screenshot.png', 'logo.JPG', 'font.woff2', 'icon.ico' ) as $name ) {
-			$this->assertTrue( FileRules::isAssetFile( $name ), $name );
+		foreach ( array( '', 'a/b.css', 'a\\b', "a\0.css", "a\n.css", str_repeat( 'a', 256 ) ) as $name ) {
+			$this->assertFalse( FileRules::isValidName( $name ), json_encode( $name ) );
 		}
-		$this->assertFalse( FileRules::isCodeFile( 'photo.png' ) );
-		$this->assertFalse( FileRules::isAssetFile( 'style.css' ) );
 	}
 
-	public function test_dangerous_names_are_refused_everywhere(): void {
-		foreach ( array( '.htaccess', '.user.ini', '.env', 'shell.php.png', 'shell.phtml', 'x.phar', 'a.php5', 'run.sh', 'evil.pHp.jpg', 'a.php.css', 'noext', '', 'a/b.css', "a\0.css", str_repeat( 'a', 201 ) . '.css' ) as $name ) {
-			$this->assertFalse( FileRules::isCodeFile( $name ) || FileRules::isAssetFile( $name ), json_encode( $name ) );
+	public function test_php_detection_and_extensions(): void {
+		foreach ( array( 'x.php', 'X.PHP', 'a.phtml', 'a.php5', 'a.pht' ) as $name ) {
+			$this->assertTrue( FileRules::isPhp( $name ), $name );
 		}
-		$this->assertTrue( FileRules::isPhp( 'x.php' ) );
-		$this->assertFalse( FileRules::isPhp( 'x.phtml' ) );
+		foreach ( array( 'x.css', 'x.php.png', '.php', 'php', 'x.phar' ) as $name ) {
+			$this->assertFalse( FileRules::isPhp( $name ), $name );
+		}
 		$this->assertSame( 'png', FileRules::extension( 'dir/Shot.PNG' ) );
 		$this->assertSame( '', FileRules::extension( 'noext' ) );
-	}
-
-	public function test_folder_names(): void {
-		foreach ( array( 'my-child', 'child_2', 'Theme Name', 'v1.2' ) as $name ) {
-			$this->assertTrue( FileRules::isSafeDirName( $name ), $name );
-		}
-		foreach ( array( '.git', '..', '', '-x', 'a/b' ) as $name ) {
-			$this->assertFalse( FileRules::isSafeDirName( $name ), json_encode( $name ) );
-		}
-	}
-
-	// Allowed roots.
-
-	public function test_allowed_roots_are_strict(): void {
-		$roots = new AllowedRoots( array( 'wp-content/themes', 'wp-content/plugins/', '\\wp-content\\x' ) );
-		$this->assertTrue( $roots->contains( 'wp-content/themes/child/style.css' ) );
-		$this->assertTrue( $roots->contains( 'WP-CONTENT/Plugins/foo' ) );
-		$this->assertFalse( $roots->contains( 'wp-content/themes' ), 'The root itself is not allowed.' );
-		$this->assertFalse( $roots->contains( 'wp-content/themes/' ) );
-		$this->assertFalse( $roots->contains( 'wp-content/themes-evil/a.css' ) );
-		$this->assertFalse( $roots->contains( 'wp-config.php' ) );
-		$this->assertFalse( $roots->contains( 'wp-content/uploads/a.png' ) );
-		$this->assertFalse( $roots->contains( '' ) );
-		$this->assertSame( 'child', $roots->packageOf( 'wp-content/themes/child/inc/a.php' ) );
-		$this->assertSame( 1, $roots->depth( 'wp-content/themes/child' ) );
-		$this->assertSame( 2, $roots->depth( 'wp-content/themes/child/style.css' ) );
-		$this->assertSame( 4, $roots->depth( 'wp-content/plugins/foo/inc/sub/a.php' ) );
-		$this->assertNull( $roots->depth( 'wp-content/uploads/a.png' ) );
-		$this->assertNull( $roots->packageOf( 'wp-content/uploads/x' ) );
-		$this->assertSame( array( 'wp-content/themes', 'wp-content/plugins', 'wp-content/x' ), $roots->roots() );
+		$this->assertSame( '', FileRules::extension( '.htaccess' ) );
 	}
 
 	// Backups.

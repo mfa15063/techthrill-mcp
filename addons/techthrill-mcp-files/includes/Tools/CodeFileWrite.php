@@ -16,7 +16,7 @@ use TechThrill\MCP\Tools\ToolResult;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Creates a file or replaces one completely, inside a theme or plugin folder.
+ * Creates a file or replaces one completely, anywhere on the site.
  */
 final class CodeFileWrite extends AbstractCodeTool {
 
@@ -25,7 +25,7 @@ final class CodeFileWrite extends AbstractCodeTool {
 	}
 
 	public function description(): string {
-		return 'Create a file, or replace its whole content, inside a theme or plugin folder (php, html, css, js, json and other text files). Works without WP-CLI or PHP eval. PHP is syntax-checked first and nothing is written when it would break the site; the previous version is backed up and can be restored with code_file_restore.';
+		return 'Create a file, or replace its whole content, anywhere on the site (php, html, css, js, json and other text files). Works without WP-CLI or PHP eval. PHP is syntax-checked first and nothing is written when it would break the site; the previous version is backed up and can be restored with code_file_restore.';
 	}
 
 	public function inputSchema(): array {
@@ -34,7 +34,7 @@ final class CodeFileWrite extends AbstractCodeTool {
 			'properties' => array(
 				'path'              => array(
 					'type'        => 'string',
-					'description' => 'Path relative to the WordPress root, inside wp-content/themes or wp-content/plugins.',
+					'description' => 'Path relative to the WordPress root, for example wp-content/themes/my-child/style.css, wp-config.php or .htaccess.',
 				),
 				'content'           => array(
 					'type'        => 'string',
@@ -73,7 +73,6 @@ final class CodeFileWrite extends AbstractCodeTool {
 
 		$path = $this->forCreate( $requested );
 		$this->allow( $path );
-		$this->requireCodeName( $this->baseName( $requested ) );
 		if ( strlen( $content ) > self::MAX_TEXT ) {
 			throw new ToolFailure( 'The content is ' . strlen( $content ) . ' bytes; this tool is limited to 5 MB.' );
 		}

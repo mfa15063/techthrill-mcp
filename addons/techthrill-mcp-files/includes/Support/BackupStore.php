@@ -45,6 +45,13 @@ final class BackupStore {
 	}
 
 	/**
+	 * The folder the backups live in.
+	 */
+	public function baseDir(): string {
+		return $this->baseDir;
+	}
+
+	/**
 	 * Copies a file into the store.
 	 *
 	 * @param string $relative Root-relative path of the file (identifies its backups).
@@ -119,7 +126,7 @@ final class BackupStore {
 	}
 
 	private function dirFor( string $relative ): string {
-		return $this->baseDir . '/' . sha1( AllowedRoots::normalize( $relative ) );
+		return $this->baseDir . '/' . sha1( strtolower( trim( str_replace( '\\', '/', $relative ), '/' ) ) );
 	}
 
 	/**

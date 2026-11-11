@@ -16,7 +16,7 @@ use TechThrill\MCP\Tools\ToolResult;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Replaces an exact piece of text in a theme or plugin file.
+ * Replaces an exact piece of text in any file on the site.
  */
 final class CodeFileEdit extends AbstractCodeTool {
 
@@ -25,7 +25,7 @@ final class CodeFileEdit extends AbstractCodeTool {
 	}
 
 	public function description(): string {
-		return 'Replace an exact string in a file inside a theme or plugin folder. Works without WP-CLI or PHP eval. Fails when the text is not found, or is found more than once while replace_all is false. A PHP edit that would introduce a syntax error is refused; the previous version is backed up.';
+		return 'Replace an exact string in a file anywhere on the site. Works without WP-CLI or PHP eval. Fails when the text is not found, or is found more than once while replace_all is false. A PHP edit that would introduce a syntax error is refused; the previous version is backed up.';
 	}
 
 	public function inputSchema(): array {
@@ -34,7 +34,7 @@ final class CodeFileEdit extends AbstractCodeTool {
 			'properties' => array(
 				'path'        => array(
 					'type'        => 'string',
-					'description' => 'Path relative to the WordPress root, inside wp-content/themes or wp-content/plugins.',
+					'description' => 'Path relative to the WordPress root, for example wp-content/themes/my-child/style.css, wp-config.php or .htaccess.',
 				),
 				'old_string'  => array(
 					'type'        => 'string',
@@ -73,7 +73,6 @@ final class CodeFileEdit extends AbstractCodeTool {
 
 		$path = $this->existing( $requested );
 		$this->allow( $path );
-		$this->requireCodeName( $this->baseName( $requested ) );
 
 		$text  = $this->readText( $path );
 		$count = substr_count( $text, $old );

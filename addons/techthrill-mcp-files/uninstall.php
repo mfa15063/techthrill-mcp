@@ -7,7 +7,6 @@
 
 defined( 'WP_UNINSTALL_PLUGIN' ) || exit;
 
-require_once __DIR__ . '/includes/Support/AllowedRoots.php';
 require_once __DIR__ . '/includes/Support/BackupStore.php';
 
 $techthrill_mcp_files_token = (string) get_option( 'techthrill_mcp_files_token', '' );

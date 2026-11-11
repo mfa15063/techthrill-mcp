@@ -23,7 +23,7 @@ final class CodeFileRestore extends AbstractCodeTool {
 	}
 
 	public function description(): string {
-		return 'Restore a saved earlier version of a theme or plugin file (the newest one unless you give an id from code_file_backups). The current content is backed up first, so a restore can be undone the same way.';
+		return 'Restore a saved earlier version of a file (the newest one unless you give an id from code_file_backups). The current content is backed up first, so a restore can be undone the same way.';
 	}
 
 	public function inputSchema(): array {
@@ -53,7 +53,6 @@ final class CodeFileRestore extends AbstractCodeTool {
 
 		$path = $this->forCreate( $requested );
 		$this->allow( $path );
-		$this->requireCodeName( $this->baseName( $requested ) );
 		if ( is_dir( $path->absolute ) ) {
 			throw new ToolFailure( $path->relative . ' is a folder.' );
 		}

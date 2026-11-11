@@ -15,7 +15,7 @@ use TechThrill\MCP\Tools\ToolResult;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Writes a binary asset (a PNG for a child theme, a font, an icon) into a theme or plugin folder from base64.
+ * Writes a binary file (a PNG for a child theme, a font, an icon, a zip, anything) anywhere on the site from base64.
  */
 final class AssetUpload extends AbstractCodeTool {
 
@@ -29,30 +29,35 @@ final class AssetUpload extends AbstractCodeTool {
 	}
 
 	public function description(): string {
-		return 'Add or replace a binary file (png, jpg, gif, webp, ico, bmp, fonts, pdf, audio, video) at an exact path inside a theme or plugin folder, for example wp-content/themes/my-child/screenshot.png, from base64 data. Works without WP-CLI. The file type must match its name. Limited to 20 MB. A replaced file is backed up.';
+		return 'Add or replace any binary file (png, jpg, gif, webp, ico, fonts, pdf, audio, video and so on) at an exact path anywhere on the site, for example wp-content/themes/my-child/screenshot.png, from base64 data. Works without WP-CLI. Common image and font types are checked against their file signature unless skip_type_check is true. Limited to 20 MB. A replaced file is backed up.';
 	}
 
 	public function inputSchema(): array {
 		return array(
 			'type'       => 'object',
 			'properties' => array(
-				'path'           => array(
+				'path'            => array(
 					'type'        => 'string',
-					'description' => 'Full destination file path relative to the WordPress root, inside wp-content/themes or wp-content/plugins.',
+					'description' => 'Full destination file path relative to the WordPress root.',
 				),
-				'content_base64' => array(
+				'content_base64'  => array(
 					'type'        => 'string',
 					'description' => 'The file contents, base64 encoded. A data: URI prefix is accepted.',
 				),
-				'overwrite'      => array(
+				'overwrite'       => array(
 					'type'        => 'boolean',
 					'description' => 'Replace the file when it exists.',
 					'default'     => false,
 				),
-				'create_dirs'    => array(
+				'create_dirs'     => array(
 					'type'        => 'boolean',
 					'description' => 'Create missing parent folders.',
 					'default'     => true,
+				),
+				'skip_type_check' => array(
+					'type'        => 'boolean',
+					'description' => 'Write the bytes even when they do not match what the file extension claims (for example a png that is not a real PNG).',
+					'default'     => false,
 				),
 			),
 			'required'   => array( 'path', 'content_base64' ),
@@ -67,13 +72,14 @@ final class AssetUpload extends AbstractCodeTool {
 		$requested = (string) ( $args['path'] ?? '' );
 		$overwrite = $this->flag( $args, 'overwrite', false );
 		$create    = $this->flag( $args, 'create_dirs', true );
+		$skip_type = $this->flag( $args, 'skip_type_check', false );
 
 		$path = $this->forCreate( $requested );
 		$this->allow( $path );
 
 		$name = $this->baseName( $requested );
-		if ( ! FileRules::isAssetFile( $name ) ) {
-			throw new ToolFailure( $name . ' is not an asset type this tool writes. Allowed: ' . FileRules::assetList() . '. (Text and code files go through code_file_write; script types and dot files are never allowed.)' );
+		if ( ! FileRules::isValidName( $name ) ) {
+			throw new ToolFailure( $name . ' is not a valid file name.' );
 		}
 		if ( is_dir( $path->absolute ) ) {
 			throw new ToolFailure( $path->relative . ' is a folder; give the full destination file path.' );
@@ -95,8 +101,8 @@ final class AssetUpload extends AbstractCodeTool {
 		}
 
 		$extension = FileRules::extension( $name );
-		if ( ! self::looksLike( $extension, $bytes ) ) {
-			throw new ToolFailure( 'The content does not look like a real .' . $extension . ' file, so it was not written.' );
+		if ( ! $skip_type && ! self::looksLike( $extension, $bytes ) ) {
+			throw new ToolFailure( 'The content does not look like a real .' . $extension . ' file, so it was not written. Set skip_type_check to true to write it anyway.' );
 		}
 
 		$existed = file_exists( $path->absolute );

@@ -2,7 +2,6 @@
 namespace TechThrill\MCP\Tests\Addon;
 
 use PHPUnit\Framework\TestCase;
-use TechThrill\MCP\Files\Support\AllowedRoots;
 use TechThrill\MCP\Files\Support\BackupStore;
 use TechThrill\MCP\Files\Tools\AbstractCodeTool;
 use TechThrill\MCP\Safety\PathJail;
@@ -73,10 +72,8 @@ abstract class AddonTestCase extends TestCase {
 		return new $class(
 			new PathJail( $this->root ),
 			new SafeMode( $safeMode, 'wp-content/plugins/techthrill-mcp' ),
-			new AllowedRoots( array( 'wp-content/themes', 'wp-content/plugins' ) ),
 			new BackupStore( $this->backupDir ),
-			fn() => $this->active,
-			array( 'wp-content/plugins/techthrill-mcp', 'wp-content/plugins/techthrill-mcp-files' )
+			fn() => $this->active
 		);
 	}
 

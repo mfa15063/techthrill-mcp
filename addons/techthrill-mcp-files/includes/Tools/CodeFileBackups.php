@@ -22,7 +22,7 @@ final class CodeFileBackups extends AbstractCodeTool {
 	}
 
 	public function description(): string {
-		return 'List the saved earlier versions (backups) of a theme or plugin file, newest first. Every overwrite, edit, rename-over and replace made with this addon saves one; the newest 20 are kept. Use code_file_restore to bring one back.';
+		return 'List the saved earlier versions (backups) of a file, newest first. Every overwrite, edit, rename-over and replace made with this addon saves one; the newest 20 are kept. Use code_file_restore to bring one back.';
 	}
 
 	public function inputSchema(): array {
@@ -44,10 +44,6 @@ final class CodeFileBackups extends AbstractCodeTool {
 
 	protected function run( array $args, ToolContext $ctx ): ToolResult {
 		$path = $this->forCreate( (string) ( $args['path'] ?? '' ) );
-		if ( ! $this->roots->contains( $path->relative ) ) {
-			return $this->fail( $path->relative . ' is outside the theme and plugin folders.' );
-		}
-
 		$list = array();
 		foreach ( $this->backups->listFor( $path->relative ) as $backup ) {
 			$list[] = array(
