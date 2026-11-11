@@ -5,6 +5,7 @@
 	<file>techthrill-mcp.php</file>
 	<file>uninstall.php</file>
 	<file>includes</file>
+	<file>addons</file>
 
 	<exclude-pattern>*/vendor/*</exclude-pattern>
 	<exclude-pattern>*/tests/*</exclude-pattern>
@@ -26,6 +27,7 @@
 		<properties>
 			<property name="text_domain" type="array">
 				<element value="techthrill-mcp"/>
+				<element value="techthrill-mcp-files"/>
 			</property>
 		</properties>
 	</rule>
@@ -38,6 +40,11 @@
 				<element value="TECHTHRILL_MCP"/>
 			</property>
 		</properties>
+	</rule>
+
+	<!-- ToolFailure messages in the addon's tools are plain text that goes back to the AI client as a JSON tool error; they are never printed as HTML. -->
+	<rule ref="WordPress.Security.EscapeOutput.ExceptionNotEscaped">
+		<exclude-pattern>*/addons/*/includes/Tools/*</exclude-pattern>
 	</rule>
 
 	<!-- Excluded: PSR-4 requires class-named files (Server.php), not class-server.php. -->

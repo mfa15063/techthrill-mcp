@@ -32,6 +32,11 @@ if ( ! function_exists( 'plugin_dir_path' ) ) {
 
 require_once dirname( __DIR__ ) . '/techthrill-mcp.php';
 
+// The File Tools addon (its classes extend the main plugin's, so it loads after it).
+require_once dirname( __DIR__ ) . '/addons/techthrill-mcp-files/includes/Autoloader.php';
+\TechThrill\MCP\Files\Autoloader::register( dirname( __DIR__ ) . '/addons/techthrill-mcp-files' );
+require_once dirname( __DIR__ ) . '/addons/techthrill-mcp-files/includes/Requirements.php';
+
 // Stubs for WordPress helpers used by plugin classes under test.
 if ( ! function_exists( '__' ) ) {
 	function __( $text, $domain = 'default' ) {

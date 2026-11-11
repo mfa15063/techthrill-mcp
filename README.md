@@ -88,6 +88,17 @@ bearer_token_env_var = "TECHTHRILL_MCP_<SLUG>_TOKEN"
 }
 ```
 
+## Addons
+
+### File Tools addon (`addons/techthrill-mcp-files`)
+
+A separate plugin that adds file tools to the MCP endpoint for hosts where WP-CLI and PHP eval cannot run (for example `proc_open` is disabled). Build both zips with `bash build.sh` (`dist/techthrill-mcp.zip` and `dist/techthrill-mcp-files.zip`), install TechThrill MCP first, then the addon.
+
+- **Needs the main plugin.** The addon declares `Requires Plugins: techthrill-mcp` (WordPress 6.5+ greys out Activate until the main plugin is active; the main plugin's folder must be named `techthrill-mcp`, as in the zip), and its own activation guard refuses to activate on any WordPress version when the main plugin is missing, inactive or older than 1.5.1, deactivates itself and explains why. An already active addon whose main plugin goes away registers nothing and shows a warning notice.
+- **Tools** (scope `files:write`, `files:read` for the listing): `code_file_write` (create or replace php, html, css, js, json and other text files; PHP is syntax-checked with the tokenizer first, no exec needed), `code_file_edit` (exact-string replace), `code_file_rename` (files and folders; an active theme or plugin needs `confirm_active`), `asset_upload` (a png, font or other binary at an exact path, for example a child theme's `screenshot.png`), `code_replace_in_files` (search and replace across a theme or plugin folder, dry run by default), `code_file_backups` and `code_file_restore` (every overwrite saves the previous version, 20 kept per file).
+- **Limits:** only inside `wp-content/themes` and `wp-content/plugins` and only inside a theme or plugin folder (not `wp-config.php`, not uploads, not core), no dot files or script types other than `.php`, the main plugin's path jail and safe mode apply, and the TechThrill MCP folders cannot be renamed through the tools. Extend the folders with the `techthrill_mcp_files_allowed_roots` filter.
+- Design notes: `docs/superpowers/specs/2026-11-11-file-tools-addon-design.md`.
+
 ## Tools
 
 | Tool | Scope | What it does |
