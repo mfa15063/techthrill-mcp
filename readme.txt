@@ -4,7 +4,7 @@ Tags: mcp, claude, codex, ai, wp-cli
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.5.1
+Stable tag: 1.5.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -77,6 +77,9 @@ Long WP-CLI runs may be cut short by the host's PHP `max_execution_time` or by a
 On multisite, deleting the plugin removes only the current site's tables.
 
 == Changelog ==
+
+= 1.5.2 =
+* File writes no longer fail on hosts that refuse to rename a new file over a .php file ("Could not replace the file."). When the rename is refused the plugin now writes the file in place instead, for file_write, file_edit, file_copy, media_upload and the File Tools addon. If the host refuses that too, the error now says what PHP reported and that a host firewall or security plugin may block the file type.
 
 = 1.5.1 =
 * The bearer-token section (Quick connect, Custom connection and the one-time copy-token box) moved from the Connect tab to the bottom of the Settings tab. The Connect tab now shows only the agent prompt, the one-paste connection and the status, with a link to the Settings tab for bearer tokens.

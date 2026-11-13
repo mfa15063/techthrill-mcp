@@ -64,7 +64,9 @@ abstract class AbstractFileTool extends AbstractTool {
 	/**
 	 * Writes a file atomically: temp file in the same directory, then rename.
 	 *
-	 * Preserves the permissions of an existing target. Leaves no temp file behind on failure.
+	 * Preserves the permissions of an existing target. Leaves no temp file behind on failure. Some hosts refuse a
+	 * rename onto certain files (typically .php) while allowing a normal write, so when the rename fails the content
+	 * is written in place instead and the failure message says why.
 	 *
 	 * @param string $target  Absolute target path; its directory must exist.
 	 * @param string $content File content.
@@ -83,17 +85,27 @@ abstract class AbstractFileTool extends AbstractTool {
 				@chmod( $temp, $perms & 0777 );
 			}
 		}
-		if ( ! @rename( $temp, $target ) ) {
-			@unlink( $temp );
-			return 'Could not replace the file.';
+		if ( $this->moveIntoPlace( $temp, $target ) ) {
+			return null;
 		}
-		return null;
+
+		$rename_error = $this->lastError();
+		$written      = @file_put_contents( $target, $content );
+		$write_error  = $this->lastError();
+		@unlink( $temp );
+		clearstatcache( true, $target );
+		if ( false !== $written && @filesize( $target ) === strlen( $content ) ) {
+			return null;
+		}
+
+		return $this->replaceFailure( $rename_error, $write_error );
 	}
 
 	/**
 	 * Copies a file atomically and byte for byte: temp file in the target directory, then rename.
 	 *
-	 * Preserves the permissions of an existing target. Leaves no temp file behind on failure.
+	 * Preserves the permissions of an existing target. Leaves no temp file behind on failure. Falls back to copying
+	 * in place when the host refuses the rename (see atomicWrite()).
 	 *
 	 * @param string $source Absolute path of an existing file.
 	 * @param string $target Absolute target path; its directory must exist.
@@ -118,11 +130,51 @@ abstract class AbstractFileTool extends AbstractTool {
 				@chmod( $temp, $perms & 0777 );
 			}
 		}
-		if ( ! @rename( $temp, $target ) ) {
-			@unlink( $temp );
-			return 'Could not replace the file.';
+		if ( $this->moveIntoPlace( $temp, $target ) ) {
+			return null;
 		}
-		return null;
+
+		$rename_error = $this->lastError();
+		$copied       = @copy( $source, $target );
+		$write_error  = $this->lastError();
+		@unlink( $temp );
+		clearstatcache( true, $target );
+		if ( $copied && @filesize( $target ) === @filesize( $source ) ) {
+			return null;
+		}
+
+		return $this->replaceFailure( $rename_error, $write_error );
+	}
+
+	/**
+	 * Moves a finished temp file over its target. A separate method so the host-refuses-rename case can be tested.
+	 *
+	 * @param string $temp   Absolute path of the temp file.
+	 * @param string $target Absolute target path.
+	 */
+	protected function moveIntoPlace( string $temp, string $target ): bool {
+		return @rename( $temp, $target );
+	}
+
+	/**
+	 * The message of the last PHP warning, or an empty string.
+	 */
+	private function lastError(): string {
+		$error = error_get_last();
+
+		return is_array( $error ) ? trim( (string) ( $error['message'] ?? '' ) ) : '';
+	}
+
+	/**
+	 * The failure message when neither the rename nor the in-place write worked.
+	 *
+	 * @param string $rename_error Warning from the rename.
+	 * @param string $write_error  Warning from the in-place write.
+	 */
+	private function replaceFailure( string $rename_error, string $write_error ): string {
+		$detail = '' === $write_error ? $rename_error : $write_error;
+
+		return 'Could not replace the file.' . ( '' === $detail ? '' : ' PHP said: ' . $detail ) . ' The server refused both a rename and a direct write; a host firewall, a security plugin or read-only file rules may block this file or file type.';
 	}
 
 	/**
