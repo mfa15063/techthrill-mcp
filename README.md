@@ -14,7 +14,7 @@ The plugin adds one endpoint, `POST /wp-json/techthrill-mcp/v1/mcp`, that speaks
 
 ## Install
 
-1. Build the zip with `composer build` (it is written to `dist/techthrill-mcp.zip`), then upload it under Plugins > Add New > Upload Plugin. Or copy the plugin folder to `wp-content/plugins/techthrill-mcp/`.
+1. Build the zips with `composer build` (written to `dist/techthrill-mcp.zip` and `dist/techthrill-mcp-files.zip`; on Windows double-click `build-plugin.bat`, which pulls `main` first, and see the top of `build-plugin.ps1` to save the zips to another folder), then upload it under Plugins > Add New > Upload Plugin. Or copy the plugin folder to `wp-content/plugins/techthrill-mcp/`.
 2. Activate the plugin.
 3. Open **TechThrill MCP** in the admin menu. The Connect tab shows the status of your host and how to connect an AI client; bearer tokens are created at the bottom of the Settings tab.
 
@@ -183,7 +183,7 @@ On Windows the plugin never launches `wp.bat` or `wp.cmd`. It uses `wp.exe`, a `
 composer install
 composer test   # run the PHPUnit suite
 composer lint   # run PHP_CodeSniffer (WordPress standard + PHPCompatibilityWP 7.4-)
-composer build  # write dist/techthrill-mcp.zip
+composer build  # write dist/techthrill-mcp.zip and dist/techthrill-mcp-files.zip
 ```
 
 Tests run without WordPress loaded; `tests/bootstrap.php` stubs the WordPress functions the plugin needs. On Windows, 14 tests are skipped (symlink and POSIX-only cases). CI runs the suite on Linux where the symlink and POSIX-only tests execute, on PHP 7.4, 8.1 and 8.3. On Linux 13 tests are skipped instead, all of them Windows-only cases (PATH resolution, trailing dot/space stripping, batch-file refusal).
